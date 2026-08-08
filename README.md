@@ -10,10 +10,22 @@ This repository currently hosts a Phase 1 POC that demonstrates the core idea:
 ## Quickstart
 
 ```bash
-pip install -e .[dev]
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -e ".[dev,lsp]"
 pytest
 pyaccess check path/to/project
 ```
+
+After cloning, enable the repository hooks once:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Every new worktree will then create its own `venv` in the background and
+install PyAccess with its development and LSP dependencies. Progress is written
+to `.venv-setup.log`.
 
 ## Visibility markers
 
@@ -66,4 +78,3 @@ convention: `@public def _secret()` (error — the underscore says hidden,
 the decorator says public) and `@internal def helper()` (warning — no
 underscore, so it reads like public API). The LSP quick fix can flip the
 decorator to match, or suppress the line.
-
