@@ -28,6 +28,7 @@ htmlcov/
 # LSP / debug
 lsp.log
 *.log
+.venv-setup.py
 
 # OS
 .DS_Store
