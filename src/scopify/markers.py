@@ -93,7 +93,7 @@ def get_visibility_name(decorator_name: str) -> str | None:
     """Return the visibility level encoded by a decorator reference.
 
     Accepts both bare names (``"internal"``) and dotted references
-    (``"pyaccess.internal"``, ``"markers.private"``). Returns ``None`` if the
+    (``"scopify.internal"``, ``"markers.private"``). Returns ``None`` if the
     decorator is unrelated to visibility.
     """
     if not decorator_name:

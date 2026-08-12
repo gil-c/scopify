@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from pyaccess.baseline import filter_new, load_baseline, write_baseline
-from pyaccess.cli import main
-from pyaccess.diagnostics import Diagnostic
+from scopify.baseline import filter_new, load_baseline, write_baseline
+from scopify.cli import main
+from scopify.diagnostics import Diagnostic
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -22,18 +22,18 @@ def _write(root: Path, rel: str, content: str) -> None:
 
 
 def _violation_project(root: Path) -> None:
-    """Minimal project that produces one PA001 violation."""
+    """Minimal project that produces one SC001 violation."""
     _write(root, "alpha/__init__.py", "")
     _write(
         root,
         "alpha/core.py",
-        "from pyaccess import internal\n\n@internal\ndef helper(): pass\n",
+        "from scopify import internal\n\n@internal\ndef helper(): pass\n",
     )
     _write(root, "beta/__init__.py", "")
     _write(root, "beta/user.py", "from alpha.core import helper\n")
 
 
-def _make_diag(file: Path, code: str = "PA001", line: int = 1, col: int = 0) -> Diagnostic:
+def _make_diag(file: Path, code: str = "SC001", line: int = 1, col: int = 0) -> Diagnostic:
     return Diagnostic(code=code, message="test", file=file, line=line, column=col)
 
 
@@ -54,7 +54,7 @@ def test_write_and_load_roundtrip(tmp_path: Path):
 
     assert baseline_file.is_file()
     entries = load_baseline(baseline_file)
-    assert ("mod.py", "PA001", 1, 0) in entries
+    assert ("mod.py", "SC001", 1, 0) in entries
 
 
 def test_write_baseline_json_structure(tmp_path: Path):
@@ -63,14 +63,14 @@ def test_write_baseline_json_structure(tmp_path: Path):
     f = root / "sub" / "mod.py"
     f.parent.mkdir()
     f.touch()
-    diag = _make_diag(f, code="PA017", line=5, col=3)
+    diag = _make_diag(f, code="SC017", line=5, col=3)
     baseline_file = tmp_path / "b.json"
 
     write_baseline([diag], root, baseline_file)
 
     data = json.loads(baseline_file.read_text())
     assert data["version"] == 1
-    assert data["entries"] == [{"file": "sub/mod.py", "code": "PA017", "line": 5, "col": 3}]
+    assert data["entries"] == [{"file": "sub/mod.py", "code": "SC017", "line": 5, "col": 3}]
 
 
 def test_write_baseline_empty_project(tmp_path: Path):
@@ -94,7 +94,7 @@ def test_filter_new_removes_baseline_matches(tmp_path: Path):
     f = root / "mod.py"
     f.touch()
     diag = _make_diag(f, line=1, col=0)
-    baseline = frozenset({("mod.py", "PA001", 1, 0)})
+    baseline = frozenset({("mod.py", "SC001", 1, 0)})
     result = filter_new([diag], root, baseline)
     assert result == []
 
@@ -106,7 +106,7 @@ def test_filter_new_keeps_unmatched_violations(tmp_path: Path):
     f.touch()
     old_diag = _make_diag(f, line=1, col=0)
     new_diag = _make_diag(f, line=10, col=0)
-    baseline = frozenset({("mod.py", "PA001", 1, 0)})
+    baseline = frozenset({("mod.py", "SC001", 1, 0)})
     result = filter_new([old_diag, new_diag], root, baseline)
     assert result == [new_diag]
 
@@ -116,8 +116,8 @@ def test_filter_new_different_code_is_new(tmp_path: Path):
     root.mkdir()
     f = root / "mod.py"
     f.touch()
-    diag = _make_diag(f, code="PA002", line=1, col=0)
-    baseline = frozenset({("mod.py", "PA001", 1, 0)})  # different code
+    diag = _make_diag(f, code="SC002", line=1, col=0)
+    baseline = frozenset({("mod.py", "SC001", 1, 0)})  # different code
     result = filter_new([diag], root, baseline)
     assert result == [diag]
 
@@ -157,7 +157,7 @@ def test_cli_write_baseline_default_filename(tmp_path: Path, capsys):
         os.chdir(tmp_path)
         rc = main(["check", str(tmp_path), "--write-baseline"])
         assert rc == 0
-        assert (tmp_path / "pyaccess-baseline.json").is_file()
+        assert (tmp_path / "scopify-baseline.json").is_file()
     finally:
         os.chdir(old_cwd)
 
@@ -187,7 +187,7 @@ def test_cli_baseline_reports_new_violations(tmp_path: Path, capsys):
     _violation_project(tmp_path)
     baseline_file = tmp_path / "b.json"
 
-    # Write baseline (captures the PA001)
+    # Write baseline (captures the SC001)
     main(["check", str(tmp_path), "--write-baseline", str(baseline_file)])
     capsys.readouterr()
 
@@ -200,13 +200,13 @@ def test_cli_baseline_reports_new_violations(tmp_path: Path, capsys):
     _write(
         tmp_path,
         "gamma/new.py",
-        "from alpha.core import helper\n",  # another PA001
+        "from alpha.core import helper\n",  # another SC001
     )
 
     rc = main(["check", str(tmp_path), "--baseline", str(baseline_file)])
     out = capsys.readouterr().out
     assert rc != 0
-    assert "PA001" in out
+    assert "SC001" in out
 
 
 def test_cli_baseline_file_not_found_returns_2(tmp_path: Path, capsys):

@@ -2,14 +2,14 @@
 
 ``imports.collect_imports`` only sees the ``from``/``import`` statement
 itself. Two common access patterns bypass it entirely and were previously
-invisible to PA001/PA002:
+invisible to SC001/SC002:
 
 * Qualified module access: ``import pkg.sub`` then ``pkg.sub.attr``.
 * Class member access: ``SomeClass.member`` / ``instance.member``, where
   ``instance`` was assigned directly from a call to a known class reference.
 
-Both are normalised into :class:`~pyaccess.imports.ImportRef` so the
-existing PA001/PA002 rules consume them unchanged. Class members are looked
+Both are normalised into :class:`~scopify.imports.ImportRef` so the
+existing SC001/SC002 rules consume them unchanged. Class members are looked
 up via a synthetic ``"module.ClassName"`` scope key (see
 ``engine._index_symbols``).
 
@@ -23,7 +23,7 @@ from __future__ import annotations
 import ast
 from collections.abc import Iterable
 
-from pyaccess.imports import ImportRef, _resolve_relative
+from scopify.imports import ImportRef, _resolve_relative
 
 
 def _flatten_attribute(node: ast.expr) -> list[str] | None:

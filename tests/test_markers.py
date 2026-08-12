@@ -1,6 +1,6 @@
 """Visibility markers must be runtime identities with no side effects."""
-from pyaccess import Visibility, dynamic, internal, private, public
-from pyaccess.markers import get_visibility_name
+from scopify import Visibility, dynamic, internal, private, public
+from scopify.markers import get_visibility_name
 
 
 def test_public_is_identity():
@@ -36,7 +36,7 @@ def test_visibility_enum_has_three_levels():
 
 def test_get_visibility_name_recognises_decorators():
     assert get_visibility_name("public") == "public"
-    assert get_visibility_name("pyaccess.public") == "public"
+    assert get_visibility_name("scopify.public") == "public"
     assert get_visibility_name("internal") == "internal"
     assert get_visibility_name("markers.private") == "private"
     assert get_visibility_name("unrelated") is None

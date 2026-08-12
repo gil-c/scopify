@@ -1,4 +1,4 @@
-"""Diagnostic model emitted by all PyAccess rules."""
+"""Diagnostic model emitted by all Scopify rules."""
 from __future__ import annotations
 
 from dataclasses import dataclass

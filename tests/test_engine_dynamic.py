@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pyaccess.engine import build_index, check_project, check_source
+from scopify.engine import build_index, check_project, check_source
 
 
 def _write(root: Path, rel: str, content: str) -> None:
@@ -21,8 +21,8 @@ def test_check_project_reports_dynamic_diagnostics(tmp_path: Path):
     )
     diagnostics = check_project(tmp_path)
     codes = {d.code for d in diagnostics}
-    assert "PA010" in codes
-    assert "PA011" in codes
+    assert "SC010" in codes
+    assert "SC011" in codes
 
 
 def test_check_source_reports_dynamic_diagnostics_for_live_buffer(tmp_path: Path):
@@ -34,7 +34,7 @@ def test_check_source_reports_dynamic_diagnostics_for_live_buffer(tmp_path: Path
         file_path=tmp_path / "pkg" / "mod.py",
         source="attr = 'x'\ngetattr(object(), attr)\n",
     )
-    assert any(d.code == "PA010" for d in diags)
+    assert any(d.code == "SC010" for d in diags)
 
 
 def test_check_source_clears_dynamic_diagnostic_once_fixed(tmp_path: Path):
@@ -47,7 +47,7 @@ def test_check_source_clears_dynamic_diagnostic_once_fixed(tmp_path: Path):
     index = build_index(tmp_path)
     file_path = tmp_path / "pkg" / "mod.py"
     assert any(
-        d.code == "PA010" for d in check_source(index, file_path=file_path, source=None)
+        d.code == "SC010" for d in check_source(index, file_path=file_path, source=None)
     )
     fixed = check_source(index, file_path=file_path, source="getattr(object(), 'x')\n")
-    assert not any(d.code == "PA010" for d in fixed)
+    assert not any(d.code == "SC010" for d in fixed)

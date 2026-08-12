@@ -52,7 +52,7 @@ def top_level_package(module: str, roots: Sequence[str] = ()) -> str:
     packages (e.g. a ``src/`` layout scanned from the repo root, which would
     otherwise collapse every package under a shared ``"src"`` segment).
 
-    When ``roots`` is given (``[tool.pyaccess] roots = [...]`` in config),
+    When ``roots`` is given (``[tool.scopify] roots = [...]`` in config),
     it's matched as the longest dotted prefix of ``module`` and returned
     verbatim, so unrelated sibling packages under the same intermediate
     directory stay properly separated.

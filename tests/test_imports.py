@@ -1,5 +1,5 @@
 """Import extraction from a Python source."""
-from pyaccess.imports import collect_imports
+from scopify.imports import collect_imports
 
 
 def test_from_import_simple():

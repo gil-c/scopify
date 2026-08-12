@@ -1,4 +1,4 @@
-"""PA003 — mismatch between an explicit visibility annotation and Python's
+"""SC003 — mismatch between an explicit visibility annotation and Python's
 leading-underscore naming convention.
 
 Long before ``@public``/``@internal``/``@private`` existed, Python
@@ -14,8 +14,8 @@ usually an oversight rather than a deliberate choice:
   only a warning nudging towards a consistent style, not a hard error.
 
 Only bare, unaliased references are recognised (``@public``, ``@internal``,
-``Public``, ``Internal``) — dotted or aliased forms (``@pyaccess.internal``,
-``from pyaccess import internal as hidden``) are left alone, both to keep
+``Public``, ``Internal``) — dotted or aliased forms (``@scopify.internal``,
+``from scopify import internal as hidden``) are left alone, both to keep
 the check simple and so the anchor position used for the LSP "flip
 visibility" quick fix is always an unambiguous, single-token span.
 """
@@ -24,9 +24,9 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from pyaccess.diagnostics import Diagnostic
+from scopify.diagnostics import Diagnostic
 
-CODE = "PA003"
+CODE = "SC003"
 
 _PUBLIC_NAMES = {"public", "Public"}
 _INTERNAL_NAMES = {"internal", "Internal"}

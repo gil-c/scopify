@@ -1,17 +1,17 @@
 """PA01x — detection of dynamic Python constructs that defeat static analysis.
 
-Unlike PA001/PA002 (which need the whole-project import graph), these checks
+Unlike SC001/SC002 (which need the whole-project import graph), these checks
 are purely local to a single file: each source is parsed once and walked for
 a fixed list of "escape the type/analysis system" patterns.
 
 Every diagnostic can be silenced through one of three escape hatches:
 
-* An inline trailing comment on the offending line: ``# pyaccess: allow-dynamic``
+* An inline trailing comment on the offending line: ``# scopify: allow-dynamic``
 * A ``@dynamic`` (or ``@dynamic(reason="...")``) decorator on the enclosing
   function or class — silences every dynamic diagnostic raised anywhere in
   that function/class body.
 * A module-level marker comment near the top of the file:
-  ``# pyaccess: dynamic-module`` — silences every dynamic diagnostic in the
+  ``# scopify: dynamic-module`` — silences every dynamic diagnostic in the
   whole module.
 """
 from __future__ import annotations
@@ -19,25 +19,25 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from pyaccess.diagnostics import Diagnostic
+from scopify.diagnostics import Diagnostic
 
-PA010 = "PA010"  # getattr/setattr/hasattr/delattr with a non-literal name
-PA011 = "PA011"  # eval / exec / compile
-PA012 = "PA012"  # importlib.import_module / __import__ with a non-literal target
-PA013 = "PA013"  # module-level __getattr__ / __getattribute__
-PA014 = "PA014"  # explicit custom metaclass
-PA015 = "PA015"  # direct __dict__ mutation
-PA016 = "PA016"  # frame introspection (inspect.currentframe/stack, sys._getframe)
-PA017 = "PA017"  # monkey-patching an attribute of an imported name
-PA018 = "PA018"  # globals()/locals()/vars() used for a write, not a read
+SC010 = "SC010"  # getattr/setattr/hasattr/delattr with a non-literal name
+SC011 = "SC011"  # eval / exec / compile
+SC012 = "SC012"  # importlib.import_module / __import__ with a non-literal target
+SC013 = "SC013"  # module-level __getattr__ / __getattribute__
+SC014 = "SC014"  # explicit custom metaclass
+SC015 = "SC015"  # direct __dict__ mutation
+SC016 = "SC016"  # frame introspection (inspect.currentframe/stack, sys._getframe)
+SC017 = "SC017"  # monkey-patching an attribute of an imported name
+SC018 = "SC018"  # globals()/locals()/vars() used for a write, not a read
 
 _ATTR_BUILTINS = {"getattr", "setattr", "hasattr", "delattr"}
 _EXEC_BUILTINS = {"eval", "exec", "compile"}
 _DICT_MUTATORS = {"update", "pop", "popitem", "setdefault", "clear", "__setitem__", "__delitem__"}
 _NAMESPACE_BUILTINS = {"globals", "locals", "vars"}
 _FRAME_INTROSPECTORS = {"inspect.currentframe", "inspect.stack", "inspect.trace", "sys._getframe"}
-_INLINE_MARKER = "pyaccess: allow-dynamic"
-_MODULE_MARKER = "pyaccess: dynamic-module"
+_INLINE_MARKER = "scopify: allow-dynamic"
+_MODULE_MARKER = "scopify: dynamic-module"
 _MODULE_MARKER_SCAN_LINES = 20
 
 
@@ -53,10 +53,10 @@ def _dotted_name(node: ast.expr) -> str:
 
 
 def _collect_dynamic_aliases(tree: ast.AST) -> set[str]:
-    """Names bound to ``pyaccess.dynamic`` in this module (handles aliasing)."""
+    """Names bound to ``scopify.dynamic`` in this module (handles aliasing)."""
     aliases = {"dynamic"}
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("pyaccess"):
+        if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("scopify"):
             for alias in node.names:
                 if alias.name == "dynamic":
                     aliases.add(alias.asname or "dynamic")
@@ -286,7 +286,7 @@ def check(source: str, module: str, file: Path) -> list[Diagnostic]:  # noqa: AR
                 name_arg = _positional_or_keyword(node, 1, "name")
                 if name_arg is not None and not _is_literal_str(name_arg):
                     emit(
-                        PA010,
+                        SC010,
                         f"'{simple_name}()' is called with a non-literal attribute "
                         "name, which defeats static accessibility analysis.",
                         node,
@@ -295,7 +295,7 @@ def check(source: str, module: str, file: Path) -> list[Diagnostic]:  # noqa: AR
 
             elif simple_name in _EXEC_BUILTINS and isinstance(node.func, ast.Name):
                 emit(
-                    PA011,
+                    SC011,
                     f"'{simple_name}()' executes dynamically generated code and "
                     "cannot be statically analysed.",
                     node,
@@ -309,7 +309,7 @@ def check(source: str, module: str, file: Path) -> list[Diagnostic]:  # noqa: AR
                 if target is not None and not _is_literal_str(target):
                     leaf_symbol, leaf_col = _leaf_symbol_and_column(source_lines, node.func)
                     emit(
-                        PA012,
+                        SC012,
                         "'importlib.import_module()' is called with a non-literal "
                         "module name and cannot be statically resolved.",
                         node,
@@ -321,7 +321,7 @@ def check(source: str, module: str, file: Path) -> list[Diagnostic]:  # noqa: AR
                 target = _positional_or_keyword(node, 0, "name")
                 if target is not None and not _is_literal_str(target):
                     emit(
-                        PA012,
+                        SC012,
                         "'__import__()' is called with a non-literal module name "
                         "and cannot be statically resolved.",
                         node,
@@ -331,7 +331,7 @@ def check(source: str, module: str, file: Path) -> list[Diagnostic]:  # noqa: AR
             elif isinstance(node.func, ast.Attribute) and _is_dunder_dict(node.func.value):
                 if node.func.attr in _DICT_MUTATORS:
                     emit(
-                        PA015,
+                        SC015,
                         f"'.__dict__.{node.func.attr}()' mutates an object's "
                         "namespace directly, bypassing declared visibility.",
                         node,
@@ -342,7 +342,7 @@ def check(source: str, module: str, file: Path) -> list[Diagnostic]:  # noqa: AR
                 builtin_name = _namespace_builtin_call(node.func.value)
                 if builtin_name is not None:
                     emit(
-                        PA018,
+                        SC018,
                         f"'{builtin_name}().{node.func.attr}()' mutates the "
                         "namespace dict directly, bypassing declared visibility.",
                         node,
@@ -357,7 +357,7 @@ def check(source: str, module: str, file: Path) -> list[Diagnostic]:  # noqa: AR
                 ):
                     leaf_symbol, leaf_col = _leaf_symbol_and_column(source_lines, node.func)
                     emit(
-                        PA016,
+                        SC016,
                         f"'{func_name}()' inspects call-stack frames, which "
                         "escapes static analysis.",
                         node,
@@ -374,7 +374,7 @@ def check(source: str, module: str, file: Path) -> list[Diagnostic]:  # noqa: AR
                     ("sys", "_getframe"),
                 }:
                     emit(
-                        PA016,
+                        SC016,
                         f"'{node.func.id}()' inspects call-stack frames, which "
                         "escapes static analysis.",
                         node,
@@ -392,7 +392,7 @@ def check(source: str, module: str, file: Path) -> list[Diagnostic]:  # noqa: AR
                         source_lines, stmt.lineno, stmt.name, stmt.col_offset + prefix_len
                     )
                     emit(
-                        PA013,
+                        SC013,
                         f"module-level '{stmt.name}' intercepts attribute access "
                         "and cannot be statically analysed.",
                         stmt,
@@ -404,7 +404,7 @@ def check(source: str, module: str, file: Path) -> list[Diagnostic]:  # noqa: AR
             for kw in node.keywords:
                 if kw.arg == "metaclass":
                     emit(
-                        PA014,
+                        SC014,
                         f"class '{node.name}' declares an explicit metaclass, "
                         "which can rewrite the class body dynamically.",
                         kw if getattr(kw, "lineno", None) else node,
@@ -416,7 +416,7 @@ def check(source: str, module: str, file: Path) -> list[Diagnostic]:  # noqa: AR
             for target in _assignment_targets(node):
                 if isinstance(target, ast.Subscript) and _is_dunder_dict(target.value):
                     emit(
-                        PA015,
+                        SC015,
                         "subscript assignment into '__dict__' mutates an "
                         "object's namespace directly, bypassing declared visibility.",
                         node,
@@ -425,7 +425,7 @@ def check(source: str, module: str, file: Path) -> list[Diagnostic]:  # noqa: AR
                     )
                 elif isinstance(target, ast.Attribute) and target.attr == "__dict__":
                     emit(
-                        PA015,
+                        SC015,
                         "direct reassignment of '__dict__' replaces an "
                         "object's whole namespace, bypassing declared visibility.",
                         node,
@@ -436,7 +436,7 @@ def check(source: str, module: str, file: Path) -> list[Diagnostic]:  # noqa: AR
                     builtin_name = _namespace_builtin_call(target.value)
                     if builtin_name is not None:
                         emit(
-                            PA018,
+                            SC018,
                             f"subscript assignment into '{builtin_name}()' mutates "
                             "the namespace dict directly, bypassing declared visibility.",
                             node,
@@ -448,7 +448,7 @@ def check(source: str, module: str, file: Path) -> list[Diagnostic]:  # noqa: AR
                     if base and base in imported_names and base not in ("self", "cls"):
                         leaf_symbol, leaf_col = _leaf_symbol_and_column(source_lines, target)
                         emit(
-                            PA017,
+                            SC017,
                             f"assigning to '{base}.{target.attr}' monkey-patches "
                             f"an attribute of the imported name '{base}'.",
                             node,
@@ -462,7 +462,7 @@ def check(source: str, module: str, file: Path) -> list[Diagnostic]:  # noqa: AR
                     builtin_name = _namespace_builtin_call(target.value)
                     if builtin_name is not None:
                         emit(
-                            PA018,
+                            SC018,
                             f"'del {builtin_name}()[...]' mutates the namespace "
                             "dict directly, bypassing declared visibility.",
                             node,

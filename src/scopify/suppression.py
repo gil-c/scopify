@@ -1,16 +1,16 @@
-"""Inline suppression: silence any PyAccess diagnostic on a single line.
+"""Inline suppression: silence any Scopify diagnostic on a single line.
 
 Unlike the dynamic-rule-specific escape hatches (``@dynamic``, the module-
-level ``# pyaccess: dynamic-module`` marker), this is a *generic* mechanism
-that works for every rule, including the cross-file PA001/PA002 checks that
+level ``# scopify: dynamic-module`` marker), this is a *generic* mechanism
+that works for every rule, including the cross-file SC001/SC002 checks that
 previously had no way to be silenced locally at all:
 
-    from alpha.core import helper  # pyaccess: ignore[PA001]
+    from alpha.core import helper  # scopify: ignore[SC001]
 
     @internal
-    def _secret(): ...  # pyaccess: ignore[PA003]
+    def _secret(): ...  # scopify: ignore[SC003]
 
-A bare ``# pyaccess: ignore`` (no brackets) silences *every* diagnostic
+A bare ``# scopify: ignore`` (no brackets) silences *every* diagnostic
 reported on that line, regardless of code — use sparingly.
 """
 from __future__ import annotations
@@ -19,16 +19,16 @@ import re
 from collections.abc import Mapping
 from pathlib import Path
 
-from pyaccess.diagnostics import Diagnostic
+from scopify.diagnostics import Diagnostic
 
-_IGNORE_RE = re.compile(r"#\s*pyaccess:\s*ignore(?:\[([A-Za-z0-9,\s]*)\])?")
+_IGNORE_RE = re.compile(r"#\s*scopify:\s*ignore(?:\[([A-Za-z0-9,\s]*)\])?")
 
 
 def parse_ignore_directive(line: str) -> set[str] | None:
     """Return the set of codes suppressed on ``line``.
 
     ``None`` means no directive is present at all. An empty ``set`` means a
-    bare ``# pyaccess: ignore`` — every code on that line is suppressed.
+    bare ``# scopify: ignore`` — every code on that line is suppressed.
     """
     match = _IGNORE_RE.search(line)
     if match is None:
@@ -54,7 +54,7 @@ def filter_suppressed(
     sources_by_module: Mapping[str, str],
     modules_by_file: Mapping[Path, str],
 ) -> list[Diagnostic]:
-    """Drop every diagnostic silenced by an inline ``# pyaccess: ignore`` comment."""
+    """Drop every diagnostic silenced by an inline ``# scopify: ignore`` comment."""
     kept: list[Diagnostic] = []
     lines_cache: dict[str, list[str]] = {}
     for d in diagnostics:

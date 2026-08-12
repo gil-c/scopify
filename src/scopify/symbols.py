@@ -4,7 +4,7 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass
 
-from pyaccess.markers import Visibility, get_visibility_name
+from scopify.markers import Visibility, get_visibility_name
 
 
 @dataclass(frozen=True)
@@ -37,7 +37,7 @@ def _visibility_from_decorators(
     decorators: list, alias_to_visibility: dict[str, Visibility]
 ) -> Visibility | None:
     for dec in decorators:
-        # Resolve via aliasing (e.g. `from pyaccess import internal as _hidden`)
+        # Resolve via aliasing (e.g. `from scopify import internal as _hidden`)
         name = _decorator_name(dec)
         if not name:
             continue
@@ -84,16 +84,16 @@ def _visibility_from_annotation(
 
 
 def _collect_visibility_aliases(tree: ast.AST) -> dict[str, Visibility]:
-    """Find ``from pyaccess import internal as X`` style aliases."""
+    """Find ``from scopify import internal as X`` style aliases."""
     aliases: dict[str, Visibility] = {}
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("pyaccess"):
+        if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("scopify"):
             for alias in node.names:
                 v = get_visibility_name(alias.name)
                 if v is not None:
                     aliases[alias.asname or alias.name] = Visibility(v)
         elif isinstance(node, ast.Import):
-            # `import pyaccess` -> use `pyaccess.internal` (already handled by get_visibility_name)
+            # `import scopify` -> use `scopify.internal` (already handled by get_visibility_name)
             pass
     return aliases
 

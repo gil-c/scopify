@@ -1,5 +1,5 @@
-"""Direct unit tests for pyaccess.usages (attribute-access resolution)."""
-from pyaccess.usages import _flatten_attribute, collect_usages
+"""Direct unit tests for scopify.usages (attribute-access resolution)."""
+from scopify.usages import _flatten_attribute, collect_usages
 
 
 def test_syntax_error_returns_empty():

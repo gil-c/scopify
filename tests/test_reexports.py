@@ -1,12 +1,12 @@
-"""Tests for __init__.py re-export promotion (pyaccess.reexports)."""
+"""Tests for __init__.py re-export promotion (scopify.reexports)."""
 from __future__ import annotations
 
 from pathlib import Path
 
-from pyaccess.imports import ImportRef
-from pyaccess.markers import Visibility
-from pyaccess.reexports import compute_reexports
-from pyaccess.symbols import Symbol
+from scopify.imports import ImportRef
+from scopify.markers import Visibility
+from scopify.reexports import compute_reexports
+from scopify.symbols import Symbol
 
 
 def _import(importer: str, from_module: str, name: str, alias: str | None = None) -> ImportRef:
@@ -73,7 +73,7 @@ def test_already_public_symbol_is_still_promoted_for_reexport_consistency():
 
 
 def test_private_symbol_is_not_promoted():
-    # A private re-export is already invalid at its own import site (PA002);
+    # A private re-export is already invalid at its own import site (SC002);
     # this module must not additionally promote it to public.
     imports_by_module = {"alpha": [_import("alpha", "alpha.core", "_secret")]}
     symbols_by_module = {

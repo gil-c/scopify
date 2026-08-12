@@ -1,4 +1,4 @@
-# PyAccess
+# Scopify
 
 Strict accessibility linter for Python: enforce `@public` / `@internal` / `@private`
 declarations across a project, the way C#, Java, TypeScript or Rust do natively.
@@ -14,7 +14,7 @@ python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -e ".[dev,lsp]"
 pytest
-pyaccess check path/to/project
+scopify check path/to/project
 ```
 
 After cloning, enable the repository hooks once:
@@ -24,13 +24,13 @@ git config core.hooksPath .githooks
 ```
 
 Every new worktree will then create its own `venv` in the background and
-install PyAccess with its development and LSP dependencies. Progress is written
+install Scopify with its development and LSP dependencies. Progress is written
 to `.venv-setup.log`.
 
 ## Visibility markers
 
 ```python
-from pyaccess import public, internal, private
+from scopify import public, internal, private
 
 @public
 def api_function(): ...
@@ -48,12 +48,12 @@ access, `Class.member`/`instance.member`).
 
 ## Configuration
 
-`pyaccess.toml` (or `[tool.pyaccess]` in `pyproject.toml`):
+`scopify.toml` (or `[tool.scopify]` in `pyproject.toml`):
 
 ```toml
 default_visibility = "public"        # or "internal" for strict-by-default
 roots = ["src.pkgA", "src.pkgB"]      # explicit top-level package boundaries
-disabled_rules = ["PA010"]            # rule codes to skip
+disabled_rules = ["SC010"]            # rule codes to skip
 ```
 
 `roots` fixes ambiguous layouts (e.g. `src/`) where the first dotted
@@ -61,17 +61,17 @@ segment alone can't tell packages apart — see `modules.top_level_package`.
 
 ## Suppressing a single line
 
-Any diagnostic (cross-package PA001/PA002, PA01x, PA003…) can be silenced
+Any diagnostic (cross-package SC001/SC002, PA01x, SC003…) can be silenced
 inline, without touching `disabled_rules`:
 
 ```python
-from alpha.core import helper  # pyaccess: ignore[PA001]
+from alpha.core import helper  # scopify: ignore[SC001]
 
 @public
-def _secret(): ...             # pyaccess: ignore  (silences every code on this line)
+def _secret(): ...             # scopify: ignore  (silences every code on this line)
 ```
 
-## PA003 — visibility vs. naming mismatch
+## SC003 — visibility vs. naming mismatch
 
 Flags a decorator/annotation that disagrees with the leading-underscore
 convention: `@public def _secret()` (error — the underscore says hidden,

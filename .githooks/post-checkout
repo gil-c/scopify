@@ -52,7 +52,7 @@ pip = os.path.join(
     "venv", "Scripts" if os.name == "nt" else "bin", "pip"
 )
 
-msg("Installing pyaccess editable (dev + lsp extras)...")
+msg("Installing scopify editable (dev + lsp extras)...")
 rc = subprocess.call([pip, "install", "-e", ".[dev,lsp]"], stdout=log, stderr=log)
 if rc != 0:
     rc = subprocess.call([pip, "install", "-e", "."], stdout=log, stderr=log)

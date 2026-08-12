@@ -1,7 +1,7 @@
 """Map files to dotted module names relative to a project root."""
 from pathlib import Path
 
-from pyaccess.modules import module_name_for, package_of, top_level_package
+from scopify.modules import module_name_for, package_of, top_level_package
 
 
 def test_module_name_for_regular_file(tmp_path: Path):

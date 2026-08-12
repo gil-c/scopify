@@ -1,11 +1,11 @@
 """Symbol extraction with visibility from decorators."""
-from pyaccess.markers import Visibility
-from pyaccess.symbols import collect_symbols
+from scopify.markers import Visibility
+from scopify.symbols import collect_symbols
 
 
 def test_collects_function_with_internal_decorator():
     source = """
-from pyaccess import internal, public
+from scopify import internal, public
 
 @internal
 def helper():
@@ -28,7 +28,7 @@ def undecorated():
 
 def test_collects_class_and_methods():
     source = """
-from pyaccess import internal, private
+from scopify import internal, private
 
 @internal
 class C:
@@ -47,7 +47,7 @@ class C:
 
 def test_aliased_decorator_import_is_recognised():
     source = """
-from pyaccess import internal as _hidden
+from scopify import internal as _hidden
 
 @_hidden
 def helper(): ...
@@ -67,7 +67,7 @@ def test_syntax_error_yields_no_symbols_but_does_not_raise():
 def test_module_level_annotated_internal_attribute_is_collected():
     source = """
 from typing import Annotated
-from pyaccess import Internal
+from scopify import Internal
 
 CONFIG: Annotated[dict, Internal] = {}
 """
@@ -80,7 +80,7 @@ CONFIG: Annotated[dict, Internal] = {}
 def test_module_level_annotated_public_and_private_attributes():
     source = """
 from typing import Annotated
-from pyaccess import Public, Private
+from scopify import Public, Private
 
 API_VERSION: Annotated[str, Public] = "1.0"
 _secret_key: Annotated[str, Private] = "shh"
@@ -110,7 +110,7 @@ def test_plain_annotation_without_annotated_wrapper_is_none():
 def test_class_level_annotated_attribute_is_collected_with_dotted_qualname():
     source = """
 from typing import Annotated
-from pyaccess import Internal
+from scopify import Internal
 
 class Config:
     secret: Annotated[str, Internal] = ""
@@ -123,7 +123,7 @@ class Config:
 def test_aliased_annotated_marker_import_is_recognised():
     source = """
 from typing import Annotated
-from pyaccess import Internal as Hidden
+from scopify import Internal as Hidden
 
 TOKEN: Annotated[str, Hidden] = ""
 """
@@ -134,9 +134,9 @@ TOKEN: Annotated[str, Hidden] = ""
 def test_dotted_annotated_reference_is_recognised():
     source = """
 import typing
-import pyaccess
+import scopify
 
-TOKEN: typing.Annotated[str, pyaccess.Internal] = ""
+TOKEN: typing.Annotated[str, scopify.Internal] = ""
 """
     syms = {s.name: s for s in collect_symbols(source, module="pkg.mod")}
     assert syms["TOKEN"].visibility is Visibility.INTERNAL
