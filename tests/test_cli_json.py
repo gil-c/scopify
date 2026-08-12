@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-from pyaccess.cli import main
+from scopify.cli import main
 
 
 def _write(root: Path, rel: str, content: str) -> None:
@@ -26,7 +26,7 @@ def test_json_output_reports_each_diagnostic(tmp_path: Path, capsys):
     _write(
         tmp_path,
         "alpha/core.py",
-        "from pyaccess import internal\n@internal\ndef helper():\n    pass\n",
+        "from scopify import internal\n@internal\ndef helper():\n    pass\n",
     )
     _write(tmp_path, "beta/__init__.py", "")
     _write(tmp_path, "beta/user.py", "from alpha.core import helper\n")
@@ -38,7 +38,7 @@ def test_json_output_reports_each_diagnostic(tmp_path: Path, capsys):
     assert isinstance(payload, list)
     assert len(payload) >= 1
     entry = payload[0]
-    assert entry["code"] == "PA001"
+    assert entry["code"] == "SC001"
     assert entry["severity"] in ("error", "warning")
     assert Path(entry["file"]).name == "user.py"
     assert isinstance(entry["line"], int) and entry["line"] >= 1

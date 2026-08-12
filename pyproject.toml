@@ -3,13 +3,13 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pyaccess"
+name = "scopify"
 version = "0.0.1"
 description = "Strict accessibility linter for Python (public/internal/private)."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "PyAccess contributors" }]
+authors = [{ name = "Scopify contributors" }]
 dependencies = [
     "tomli>=2; python_version < '3.11'",
 ]
@@ -19,8 +19,8 @@ dev = ["pytest>=8", "ruff>=0.6"]
 lsp = ["pygls>=1.3", "lsprotocol>=2023.0.1"]
 
 [project.scripts]
-pyaccess = "pyaccess.cli:main"
-pyaccess-lsp = "pyaccess.lsp:main"
+scopify = "scopify.cli:main"
+scopify-lsp = "scopify.lsp:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

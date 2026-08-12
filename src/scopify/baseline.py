@@ -1,4 +1,4 @@
-"""Baseline support for pyaccess check.
+"""Baseline support for scopify check.
 
 A baseline captures the set of violations that exist in a project *today*,
 so that CI only fails on *new* violations introduced after the baseline was
@@ -8,17 +8,17 @@ ruff, and similar tools.
 Workflow::
 
     # Record current state (one-time or after a bulk-fix session):
-    pyaccess check src/ --write-baseline pyaccess-baseline.json
+    scopify check src/ --write-baseline scopify-baseline.json
 
     # In CI: fail only if new violations appear:
-    pyaccess check src/ --baseline pyaccess-baseline.json
+    scopify check src/ --baseline scopify-baseline.json
 
 Baseline format (v1)::
 
     {
       "version": 1,
       "entries": [
-        {"file": "src/pkg/mod.py", "code": "PA001", "line": 12, "col": 0},
+        {"file": "src/pkg/mod.py", "code": "SC001", "line": 12, "col": 0},
         ...
       ]
     }
@@ -35,7 +35,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from pyaccess.diagnostics import Diagnostic
+from scopify.diagnostics import Diagnostic
 
 _FORMAT_VERSION = 1
 
@@ -73,7 +73,7 @@ def load_baseline(path: Path) -> frozenset[tuple[str, str, int, int]]:
     version = data.get("version")
     if version != _FORMAT_VERSION:
         raise ValueError(
-            f"pyaccess-baseline: unsupported format version {version!r} "
+            f"scopify-baseline: unsupported format version {version!r} "
             f"(expected {_FORMAT_VERSION}). Re-generate with --write-baseline."
         )
     entries: set[tuple[str, str, int, int]] = set()

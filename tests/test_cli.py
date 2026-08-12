@@ -1,7 +1,7 @@
 """CLI smoke tests."""
 from pathlib import Path
 
-from pyaccess.cli import main
+from scopify.cli import main
 
 
 def _write(root: Path, rel: str, content: str) -> None:
@@ -24,7 +24,7 @@ def test_cli_returns_nonzero_on_violation(tmp_path: Path, capsys):
     _write(
         tmp_path,
         "alpha/core.py",
-        "from pyaccess import internal\n@internal\ndef helper():\n    pass\n",
+        "from scopify import internal\n@internal\ndef helper():\n    pass\n",
     )
     _write(tmp_path, "beta/__init__.py", "")
     _write(tmp_path, "beta/user.py", "from alpha.core import helper\n")
@@ -32,7 +32,7 @@ def test_cli_returns_nonzero_on_violation(tmp_path: Path, capsys):
     rc = main(["check", str(tmp_path)])
     out = capsys.readouterr().out
     assert rc != 0
-    assert "PA001" in out
+    assert "SC001" in out
 
 
 def test_cli_disable_suppresses_rule(tmp_path: Path, capsys):
@@ -40,15 +40,15 @@ def test_cli_disable_suppresses_rule(tmp_path: Path, capsys):
     _write(
         tmp_path,
         "alpha/core.py",
-        "from pyaccess import internal\n@internal\ndef _helper():\n    pass\n",
+        "from scopify import internal\n@internal\ndef _helper():\n    pass\n",
     )
     _write(tmp_path, "beta/__init__.py", "")
     _write(tmp_path, "beta/user.py", "from alpha.core import _helper\n")
 
-    rc = main(["check", str(tmp_path), "--disable", "PA001"])
+    rc = main(["check", str(tmp_path), "--disable", "SC001"])
     out = capsys.readouterr().out
     assert rc == 0
-    assert "PA001" not in out
+    assert "SC001" not in out
 
 
 def test_cli_default_visibility_internal_flags_unannotated(tmp_path: Path, capsys):
@@ -61,7 +61,7 @@ def test_cli_default_visibility_internal_flags_unannotated(tmp_path: Path, capsy
     rc = main(["check", str(tmp_path), "--default-visibility", "internal"])
     out = capsys.readouterr().out
     assert rc != 0
-    assert "PA001" in out
+    assert "SC001" in out
 
 
 def test_cli_root_override(tmp_path: Path, capsys):
@@ -71,7 +71,7 @@ def test_cli_root_override(tmp_path: Path, capsys):
     _write(
         src,
         "alpha/core.py",
-        "from pyaccess import internal\n@internal\ndef helper():\n    pass\n",
+        "from scopify import internal\n@internal\ndef helper():\n    pass\n",
     )
     _write(src, "beta/__init__.py", "")
     _write(src, "beta/user.py", "from alpha.core import helper\n")
@@ -79,5 +79,5 @@ def test_cli_root_override(tmp_path: Path, capsys):
     rc = main(["check", str(src), "--root", "alpha", "--root", "beta"])
     out = capsys.readouterr().out
     assert rc != 0
-    assert "PA001" in out
+    assert "SC001" in out
 

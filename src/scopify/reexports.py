@@ -8,7 +8,7 @@ must be importable from any other package, even though the original
 declaration site is still internal.
 
 ``@private`` symbols are *not* handled here: re-exporting one from another
-module is already rejected at the re-export's own import site by PA002
+module is already rejected at the re-export's own import site by SC002
 (cross-module access to a private symbol), so it can never reach this stage.
 
 The promotion is computed to a fixpoint so re-exports chain through nested
@@ -20,9 +20,9 @@ from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
 
-from pyaccess.imports import ImportRef
-from pyaccess.markers import Visibility
-from pyaccess.symbols import Symbol
+from scopify.imports import ImportRef
+from scopify.markers import Visibility
+from scopify.symbols import Symbol
 
 
 def compute_reexports(
@@ -56,7 +56,7 @@ def compute_reexports(
                     continue
                 original = target_symbols.get(imp.imported_name)
                 if original is None or original.visibility is Visibility.PRIVATE:
-                    continue  # private is already rejected at this import site by PA002;
+                    continue  # private is already rejected at this import site by SC002;
                     # public/internal/default-visibility symbols are all fair game to
                     # re-export, and chaining requires re-promoting an already-promoted
                     # (now-public) symbol one level further up.

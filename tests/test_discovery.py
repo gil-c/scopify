@@ -1,7 +1,7 @@
 """Discovery: walk a project root and return its Python files."""
 from pathlib import Path
 
-from pyaccess.discovery import discover_python_files
+from scopify.discovery import discover_python_files
 
 
 def test_discovers_py_files_recursively(tmp_path: Path):

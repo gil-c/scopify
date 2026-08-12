@@ -1,4 +1,4 @@
-"""Stable entry point for PyCharm/LSP4IJ's *global* PyAccess language server definition.
+"""Stable entry point for PyCharm/LSP4IJ's *global* Scopify language server definition.
 
 LSP4IJ registers user-defined language servers at the IDE-application level, not
 per project (confirmed: PyCharm stores the command line in
@@ -16,29 +16,29 @@ it can run with any Python 3 interpreter, and at every launch it:
    consistently and ``os.getcwd()`` alone proved unreliable in practice. As a
    safety net we also walk a few parent directories in case the root is a
    subdirectory of the project (e.g. a nested source root).
-2. Looks for that project's OWN dedicated venv (``venv/Scripts/pyaccess-lsp.exe``
-   on Windows, ``venv/bin/pyaccess-lsp`` elsewhere) and, if found, execs it
+2. Looks for that project's OWN dedicated venv (``venv/Scripts/scopify-lsp.exe``
+   on Windows, ``venv/bin/scopify-lsp`` elsewhere) and, if found, execs it
    in-place (``os.execv``) so the *editable install living in that exact
    worktree* is what actually serves diagnostics -- always the right rule
    version for whichever worktree/project window PyCharm happens to be running,
    with zero manual reconfiguration when a new worktree is created.
 3. Otherwise (no venv yet, or an unrelated repo that never opted into
-   PyAccess) exits immediately without starting any server and without
+   Scopify) exits immediately without starting any server and without
    creating anything. This script never builds a venv itself -- that is
    .githooks/post-checkout's job (core.hooksPath=.githooks, shared repo-wide),
    which already builds it the moment a new worktree is created, before
-   anyone opens PyCharm. If a project has no venv yet, PyAccess just stays
+   anyone opens PyCharm. If a project has no venv yet, Scopify just stays
    silent there until the hook (or a manual `pip install -e .[dev,lsp]`) has
    run -- no diagnostics, no crash, no hidden background work from the IDE.
 
-Combined with PyAccess's own pyproject.toml opt-in check (``_project_opts_in``
-in ``pyaccess.lsp``), unrelated repos that don't opt into PyAccess never get
+Combined with Scopify's own pyproject.toml opt-in check (``_project_opts_in``
+in ``scopify.lsp``), unrelated repos that don't opt into Scopify never get
 diagnostics and never even spawn a process for it.
 
 Configure once in PyCharm's LSP4IJ language server settings (Settings ->
-Languages & Frameworks -> Language Servers -> PyAccess -> Command):
+Languages & Frameworks -> Language Servers -> Scopify -> Command):
 
-    py -3 D:\\Dev\\pyaccess\\scripts\\pyaccess-lsp-dispatch.py $ProjectFileDir$
+    py -3 D:\\Dev\\scopify\\scripts\\scopify-lsp-dispatch.py $ProjectFileDir$
 
 Point it at the MAIN checkout's copy of this script (not a worktree's), since
 the main checkout is never deleted, so the command line never needs updating
@@ -58,9 +58,9 @@ _MAX_PARENT_HOPS = 4
 
 def _venv_lsp_executable(project_root: Path) -> Path | None:
     if os.name == "nt":
-        candidate = project_root / "venv" / "Scripts" / "pyaccess-lsp.exe"
+        candidate = project_root / "venv" / "Scripts" / "scopify-lsp.exe"
     else:
-        candidate = project_root / "venv" / "bin" / "pyaccess-lsp"
+        candidate = project_root / "venv" / "bin" / "scopify-lsp"
     return candidate if candidate.is_file() else None
 
 

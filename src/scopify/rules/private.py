@@ -1,4 +1,4 @@
-"""PA002 — cross-module import of a symbol marked ``@private``.
+"""SC002 — cross-module import of a symbol marked ``@private``.
 
 A ``@private`` symbol is only visible inside its defining module. Any
 ``from other.module import X`` performed from a *different* module — even
@@ -9,12 +9,12 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
-from pyaccess.diagnostics import Diagnostic
-from pyaccess.imports import ImportRef
-from pyaccess.markers import Visibility
-from pyaccess.symbols import Symbol
+from scopify.diagnostics import Diagnostic
+from scopify.imports import ImportRef
+from scopify.markers import Visibility
+from scopify.symbols import Symbol
 
-CODE = "PA002"
+CODE = "SC002"
 
 
 def check(

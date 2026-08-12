@@ -1,7 +1,7 @@
-"""Project-wide PyAccess configuration.
+"""Project-wide Scopify configuration.
 
-Looks for a standalone ``pyaccess.toml`` first, then falls back to a
-``[tool.pyaccess]`` table in ``pyproject.toml``. Currently supports a single
+Looks for a standalone ``scopify.toml`` first, then falls back to a
+``[tool.scopify]`` table in ``pyproject.toml``. Currently supports a single
 setting, per roadmap §4.1:
 
 * ``default_visibility`` — the visibility assumed for a symbol that carries
@@ -10,23 +10,23 @@ setting, per roadmap §4.1:
   is the stricter setting recommended once a project wants every public API
   surface to be explicit.
 * ``roots`` — explicit dotted-prefix list of the top-level package
-  boundaries used by PA001. Overrides the default heuristic (first dotted
+  boundaries used by SC001. Overrides the default heuristic (first dotted
   segment of the module name), which collapses when the analysis root isn't
   the direct parent of the packages (e.g. a ``src/`` layout or a monorepo
   scanned from its top).
-* ``disabled_rules`` — rule codes (e.g. ``"PA010"``) to skip entirely.
+* ``disabled_rules`` — rule codes (e.g. ``"SC010"``) to skip entirely.
 * ``severity`` — per-rule severity overrides. Maps rule codes to one of
   ``"error"`` (default), ``"warning"``, ``"hint"``, or ``"none"`` (silences
   the rule, equivalent to adding it to ``disabled_rules``).
 
   Example::
 
-      [tool.pyaccess.severity]
-      PA017 = "warning"
-      PA003 = "hint"
+      [tool.scopify.severity]
+      SC017 = "warning"
+      SC003 = "hint"
 
 CLI overrides (via :func:`merge_cli_overrides`) take precedence over any
-file-based setting so that one-off runs (``--disable PA014``, CI invocations
+file-based setting so that one-off runs (``--disable SC014``, CI invocations
 with a specific ``--default-visibility``) never require touching the project
 config.
 """
@@ -40,7 +40,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - only exercised on Python 3.10
     import tomli as tomllib  # type: ignore[no-redef]
 
-from pyaccess.markers import Visibility
+from scopify.markers import Visibility
 
 _DEFAULT_VISIBILITY = Visibility.PUBLIC
 _VALID_DEFAULTS = {"public": Visibility.PUBLIC, "internal": Visibility.INTERNAL}
@@ -48,7 +48,7 @@ _VALID_SEVERITIES = {"error", "warning", "hint", "none"}
 
 
 @dataclass(frozen=True)
-class PyAccessConfig:
+class ScopifyConfig:
     default_visibility: Visibility = _DEFAULT_VISIBILITY
     roots: tuple[str, ...] = ()
     disabled_rules: frozenset[str] = field(default_factory=frozenset)
@@ -98,8 +98,8 @@ def _parse_severity(raw: object, *, source: Path) -> dict[str, str]:
     return result
 
 
-def _config_from_mapping(data: dict, *, source: Path) -> PyAccessConfig:
-    return PyAccessConfig(
+def _config_from_mapping(data: dict, *, source: Path) -> ScopifyConfig:
+    return ScopifyConfig(
         default_visibility=_parse_default_visibility(
             data.get("default_visibility"), source=source
         ),
@@ -111,15 +111,15 @@ def _config_from_mapping(data: dict, *, source: Path) -> PyAccessConfig:
     )
 
 
-def load_config(root: Path) -> PyAccessConfig:
-    """Load PyAccess configuration for a project rooted at ``root``.
+def load_config(root: Path) -> ScopifyConfig:
+    """Load Scopify configuration for a project rooted at ``root``.
 
-    Returns defaults if neither ``pyaccess.toml`` nor a ``[tool.pyaccess]``
+    Returns defaults if neither ``scopify.toml`` nor a ``[tool.scopify]``
     section in ``pyproject.toml`` is found, or a key is simply absent.
     """
     root = Path(root)
 
-    standalone = root / "pyaccess.toml"
+    standalone = root / "scopify.toml"
     if standalone.is_file():
         data = tomllib.loads(standalone.read_text(encoding="utf-8"))
         return _config_from_mapping(data, source=standalone)
@@ -127,19 +127,19 @@ def load_config(root: Path) -> PyAccessConfig:
     pyproject = root / "pyproject.toml"
     if pyproject.is_file():
         data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-        tool_section = data.get("tool", {}).get("pyaccess", {})
+        tool_section = data.get("tool", {}).get("scopify", {})
         return _config_from_mapping(tool_section, source=pyproject)
 
-    return PyAccessConfig()
+    return ScopifyConfig()
 
 
 def merge_cli_overrides(
-    base: PyAccessConfig,
+    base: ScopifyConfig,
     *,
     default_visibility: str | None = None,
     roots: list[str] | None = None,
     disable: list[str] | None = None,
-) -> PyAccessConfig:
+) -> ScopifyConfig:
     """Return a new config with CLI-supplied values merged over ``base``.
 
     Only non-``None`` arguments override the corresponding field; absent

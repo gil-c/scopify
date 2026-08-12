@@ -1,4 +1,4 @@
-"""Minimal CLI: ``pyaccess check <path>``."""
+"""Minimal CLI: ``scopify check <path>``."""
 from __future__ import annotations
 
 import argparse
@@ -7,17 +7,17 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from pyaccess.baseline import filter_new, load_baseline, write_baseline
-from pyaccess.config import load_config, merge_cli_overrides
-from pyaccess.diagnostics import Diagnostic
-from pyaccess.docs import get_rule, list_rules
-from pyaccess.engine import check_project
+from scopify.baseline import filter_new, load_baseline, write_baseline
+from scopify.config import load_config, merge_cli_overrides
+from scopify.diagnostics import Diagnostic
+from scopify.docs import get_rule, list_rules
+from scopify.engine import check_project
 
-_DEFAULT_BASELINE = "pyaccess-baseline.json"
+_DEFAULT_BASELINE = "scopify-baseline.json"
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="pyaccess", description=__doc__)
+    parser = argparse.ArgumentParser(prog="scopify", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
     check = sub.add_parser("check", help="Check a project for accessibility violations.")
@@ -33,7 +33,7 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="RULE",
         action="append",
         default=[],
-        help="Disable a rule for this run (e.g. --disable PA014). Repeatable.",
+        help="Disable a rule for this run (e.g. --disable SC014). Repeatable.",
     )
     check.add_argument(
         "--default-visibility",
@@ -78,7 +78,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "code",
         nargs="?",
         metavar="CODE",
-        help="Rule code to explain (e.g. PA017). Omit to list all rules.",
+        help="Rule code to explain (e.g. SC017). Omit to list all rules.",
     )
 
     return parser
@@ -118,7 +118,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             baseline_path = Path(args.write_baseline)
             write_baseline(diagnostics, args.path, baseline_path)
             print(
-                f"pyaccess: baseline written to {baseline_path} "
+                f"scopify: baseline written to {baseline_path} "
                 f"({len(diagnostics)} violation(s) recorded)."
             )
             return 0
@@ -128,7 +128,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             baseline_path = Path(args.baseline)
             if not baseline_path.is_file():
                 print(
-                    f"pyaccess: baseline file not found: {baseline_path}. "
+                    f"scopify: baseline file not found: {baseline_path}. "
                     "Run --write-baseline first.",
                     file=sys.stderr,
                 )
@@ -136,7 +136,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             try:
                 baseline = load_baseline(baseline_path)
             except (ValueError, KeyError) as exc:
-                print(f"pyaccess: {exc}", file=sys.stderr)
+                print(f"scopify: {exc}", file=sys.stderr)
                 return 2
             diagnostics = filter_new(diagnostics, args.path, baseline)
 
@@ -146,9 +146,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             for diag in diagnostics:
                 print(diag.format())
             if not diagnostics:
-                print("pyaccess: 0 issue found.")
+                print("scopify: 0 issue found.")
             else:
-                print(f"pyaccess: {len(diagnostics)} issue(s) found.")
+                print(f"scopify: {len(diagnostics)} issue(s) found.")
         return 0 if not diagnostics else 1
 
     if args.command == "explain":
@@ -166,13 +166,13 @@ def _handle_explain(args: argparse.Namespace) -> int:
         for r in rules:
             sev = f"[{r.severity}]"
             print(f"  {r.code:<{width}}  {sev:<9}  {r.title}")
-        print(f"\n  {len(rules)} rules. Run 'pyaccess explain <CODE>' for full details.")
+        print(f"\n  {len(rules)} rules. Run 'scopify explain <CODE>' for full details.")
         return 0
 
     rule = get_rule(args.code)
     if rule is None:
-        print(f"pyaccess: unknown rule code {args.code!r}.", file=sys.stderr)
-        print("Run 'pyaccess explain' (no argument) to list all known rules.", file=sys.stderr)
+        print(f"scopify: unknown rule code {args.code!r}.", file=sys.stderr)
+        print("Run 'scopify explain' (no argument) to list all known rules.", file=sys.stderr)
         return 2
     print(rule.render())
     return 0

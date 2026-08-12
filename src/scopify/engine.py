@@ -13,20 +13,20 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from pyaccess.config import PyAccessConfig, load_config
-from pyaccess.diagnostics import Diagnostic
-from pyaccess.discovery import discover_python_files
-from pyaccess.imports import ImportRef, collect_imports
-from pyaccess.markers import Visibility
-from pyaccess.modules import module_name_for
-from pyaccess.reexports import compute_reexports
-from pyaccess.rules import access as access_rule
-from pyaccess.rules import dynamic as dynamic_rule
-from pyaccess.rules import naming as naming_rule
-from pyaccess.rules import private as private_rule
-from pyaccess.suppression import filter_suppressed
-from pyaccess.symbols import Symbol, collect_symbols
-from pyaccess.usages import collect_usages
+from scopify.config import ScopifyConfig, load_config
+from scopify.diagnostics import Diagnostic
+from scopify.discovery import discover_python_files
+from scopify.imports import ImportRef, collect_imports
+from scopify.markers import Visibility
+from scopify.modules import module_name_for
+from scopify.reexports import compute_reexports
+from scopify.rules import access as access_rule
+from scopify.rules import dynamic as dynamic_rule
+from scopify.rules import naming as naming_rule
+from scopify.rules import private as private_rule
+from scopify.suppression import filter_suppressed
+from scopify.symbols import Symbol, collect_symbols
+from scopify.usages import collect_usages
 
 
 @dataclass
@@ -39,15 +39,15 @@ class ProjectIndex:
     symbols_by_module: dict[str, dict[str, Symbol]] = field(default_factory=dict)
     imports_by_module: dict[str, list[ImportRef]] = field(default_factory=dict)
     # Live source text per module, kept around so inline
-    # ``# pyaccess: ignore`` comments can be resolved against the same
-    # content the diagnostics were computed from (see pyaccess.suppression).
+    # ``# scopify: ignore`` comments can be resolved against the same
+    # content the diagnostics were computed from (see scopify.suppression).
     sources_by_module: dict[str, str] = field(default_factory=dict)
-    # Per-file diagnostics from rules that only need one file's AST (PA01x, PA003).
+    # Per-file diagnostics from rules that only need one file's AST (PA01x, SC003).
     dynamic_diagnostics_by_module: dict[str, list[Diagnostic]] = field(default_factory=dict)
     naming_diagnostics_by_module: dict[str, list[Diagnostic]] = field(default_factory=dict)
-    # Visibility assumed for undecorated symbols (see pyaccess.config).
+    # Visibility assumed for undecorated symbols (see scopify.config).
     default_visibility: Visibility = Visibility.PUBLIC
-    # Explicit top-level package boundaries (see pyaccess.config / modules.top_level_package).
+    # Explicit top-level package boundaries (see scopify.config / modules.top_level_package).
     roots: tuple[str, ...] = ()
     disabled_rules: frozenset[str] = field(default_factory=frozenset)
     # Per-rule severity overrides from config (rule code → "error"/"warning"/"hint"/"none").
@@ -89,7 +89,7 @@ def _parse_file(
     return top_level, nested, imports
 
 
-def build_index(root: Path, config: PyAccessConfig | None = None) -> ProjectIndex:
+def build_index(root: Path, config: ScopifyConfig | None = None) -> ProjectIndex:
     """Scan ``root``, parse every file once, return a reusable index."""
     root = Path(root).resolve()
     if config is None:
@@ -200,11 +200,11 @@ def _run_rules(
     return diagnostics
 
 
-def check_project(root: Path, config: PyAccessConfig | None = None) -> list[Diagnostic]:
+def check_project(root: Path, config: ScopifyConfig | None = None) -> list[Diagnostic]:
     """Run all enabled rules on the project rooted at ``root``.
 
     ``config`` may be supplied by the CLI (or tests) to override or bypass the
-    on-disk ``pyaccess.toml`` / ``pyproject.toml``.  When ``None`` the config
+    on-disk ``scopify.toml`` / ``pyproject.toml``.  When ``None`` the config
     is loaded from disk as usual.
     """
     index = build_index(root, config=config)

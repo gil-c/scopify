@@ -6,12 +6,12 @@ confusing to mix with the other two techniques here.)
 """
 import importlib
 
-from pyaccess import dynamic
+from scopify import dynamic
 
 
 def inline_suppressed(obj: object, attr_name: str) -> object:
     # Escape hatch 1: an inline trailing comment on the offending line.
-    return getattr(obj, attr_name)  # pyaccess: allow-dynamic
+    return getattr(obj, attr_name)  # scopify: allow-dynamic
 
 
 @dynamic(reason="plugin loader needs a runtime-computed import path")

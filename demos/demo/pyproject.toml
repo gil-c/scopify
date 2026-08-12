@@ -2,9 +2,9 @@
 name = "demo"
 version = "0.0.1"
 requires-python = ">=3.10"
-dependencies = ["pyaccess"]
+dependencies = ["scopify"]
 
-[tool.pyaccess]
+[tool.scopify]
 default_visibility = "public"                         # symbols without a decorator are public by default
 roots = ["core_pkg", "consumer_pkg", "dynamic_pkg"]    # explicit top-level package boundaries (see modules.top_level_package)
-# disabled_rules = ["PA014"]                            # rule codes to skip project-wide (commented out: kept enabled here)
+# disabled_rules = ["SC014"]                            # rule codes to skip project-wide (commented out: kept enabled here)

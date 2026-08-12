@@ -1,11 +1,11 @@
-"""PA013 / PA014 — module-level attribute hooks and dynamic metaclasses.
+"""SC013 / SC014 — module-level attribute hooks and dynamic metaclasses.
 
 Both constructs let an object's shape change *after* the class/module body
-has been parsed, which is exactly what PyAccess statically cannot follow.
+has been parsed, which is exactly what Scopify statically cannot follow.
 """
 
 
-def __getattr__(name: str) -> object:  # PA013 -- module-level hook intercepts every lookup on this module
+def __getattr__(name: str) -> object:  # SC013 -- module-level hook intercepts every lookup on this module
     raise AttributeError(name)
 
 
@@ -15,5 +15,5 @@ class _Meta(type):
     """
 
 
-class Widget(metaclass=_Meta):  # PA014 -- explicit custom metaclass
+class Widget(metaclass=_Meta):  # SC014 -- explicit custom metaclass
     pass

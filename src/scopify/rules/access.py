@@ -1,6 +1,6 @@
-"""PA001 — cross-package import of a symbol marked ``@internal``.
+"""SC001 — cross-package import of a symbol marked ``@internal``.
 
-This is the foundational rule of PyAccess. It walks every import site in the
+This is the foundational rule of Scopify. It walks every import site in the
 project and reports those that resolve to an ``@internal`` symbol defined in
 a *different* top-level package.
 """
@@ -9,13 +9,13 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
-from pyaccess.diagnostics import Diagnostic
-from pyaccess.imports import ImportRef
-from pyaccess.markers import Visibility
-from pyaccess.modules import top_level_package
-from pyaccess.symbols import Symbol
+from scopify.diagnostics import Diagnostic
+from scopify.imports import ImportRef
+from scopify.markers import Visibility
+from scopify.modules import top_level_package
+from scopify.symbols import Symbol
 
-CODE = "PA001"
+CODE = "SC001"
 
 
 def check(

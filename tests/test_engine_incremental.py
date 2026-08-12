@@ -7,7 +7,7 @@ expose an incremental entry point: ``check_source`` reuses a pre-built
 """
 from pathlib import Path
 
-from pyaccess.engine import ProjectIndex, build_index, check_source
+from scopify.engine import ProjectIndex, build_index, check_source
 
 
 def _write(root: Path, rel: str, content: str) -> str:
@@ -22,7 +22,7 @@ def test_build_index_returns_project_index(tmp_path: Path):
     _write(
         tmp_path,
         "alpha/core.py",
-        "from pyaccess import internal\n@internal\ndef helper():\n    pass\n",
+        "from scopify import internal\n@internal\ndef helper():\n    pass\n",
     )
     _write(tmp_path, "beta/__init__.py", "")
     _write(tmp_path, "beta/user.py", "from alpha.core import helper\n")
@@ -38,7 +38,7 @@ def test_check_source_returns_only_diagnostics_for_that_file(tmp_path: Path):
     _write(
         tmp_path,
         "alpha/core.py",
-        "from pyaccess import internal\n@internal\ndef helper():\n    pass\n",
+        "from scopify import internal\n@internal\ndef helper():\n    pass\n",
     )
     _write(tmp_path, "beta/__init__.py", "")
     user_path = tmp_path / "beta" / "user.py"
@@ -52,7 +52,7 @@ def test_check_source_returns_only_diagnostics_for_that_file(tmp_path: Path):
         source=user_path.read_text(),
     )
     assert all(d.file == user_path for d in diagnostics)
-    assert any(d.code == "PA001" for d in diagnostics)
+    assert any(d.code == "SC001" for d in diagnostics)
 
 
 def test_check_source_uses_live_buffer_content(tmp_path: Path):
@@ -62,7 +62,7 @@ def test_check_source_uses_live_buffer_content(tmp_path: Path):
     _write(
         tmp_path,
         "alpha/core.py",
-        "from pyaccess import internal\n@internal\ndef helper():\n    pass\n",
+        "from scopify import internal\n@internal\ndef helper():\n    pass\n",
     )
     _write(tmp_path, "beta/__init__.py", "")
     user_path = tmp_path / "beta" / "user.py"
@@ -72,7 +72,7 @@ def test_check_source_uses_live_buffer_content(tmp_path: Path):
     index = build_index(tmp_path)
     # Simulate the user removing the offending import in their buffer.
     diagnostics = check_source(index, file_path=user_path, source="# fixed!\n")
-    assert [d for d in diagnostics if d.code == "PA001"] == []
+    assert [d for d in diagnostics if d.code == "SC001"] == []
 
 
 def test_check_source_handles_file_not_yet_in_index(tmp_path: Path):
@@ -83,7 +83,7 @@ def test_check_source_handles_file_not_yet_in_index(tmp_path: Path):
     _write(
         tmp_path,
         "alpha/core.py",
-        "from pyaccess import internal\n@internal\ndef helper():\n    pass\n",
+        "from scopify import internal\n@internal\ndef helper():\n    pass\n",
     )
     _write(tmp_path, "beta/__init__.py", "")
     index = build_index(tmp_path)
@@ -93,7 +93,7 @@ def test_check_source_handles_file_not_yet_in_index(tmp_path: Path):
     new_path.write_text("from alpha.core import helper\n")
 
     diagnostics = check_source(index, file_path=new_path, source="from alpha.core import helper\n")
-    assert any(d.code == "PA001" for d in diagnostics)
+    assert any(d.code == "SC001" for d in diagnostics)
     assert "beta.new_user" in index.symbols_by_module or True  # module registered
     assert index.modules_by_file[new_path.resolve()] == "beta.new_user"
 
@@ -140,7 +140,7 @@ def test_check_source_registers_new_class_member_scope(tmp_path: Path):
         index,
         file_path=core_path,
         source=(
-            "from pyaccess import internal\n"
+            "from scopify import internal\n"
             "class Widget:\n"
             "    @internal\n"
             "    def helper(self):\n"
@@ -168,7 +168,7 @@ def test_build_index_ignores_root_level_init_file(tmp_path: Path):
     core_path = tmp_path / "alpha" / "core.py"
     core_path.parent.mkdir(parents=True, exist_ok=True)
     core_path.write_text(
-        "from pyaccess import internal\n"
+        "from scopify import internal\n"
         "class Widget:\n"
         "    @internal\n"
         "    def helper(self):\n"

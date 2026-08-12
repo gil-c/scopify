@@ -1,7 +1,7 @@
-"""Per-rule documentation for all PyAccess rules.
+"""Per-rule documentation for all Scopify rules.
 
 Each entry contains:
-- code          : rule identifier (e.g. "PA001")
+- code          : rule identifier (e.g. "SC001")
 - title         : short human-readable name
 - what          : one-line description of what is detected
 - why           : rationale / why this matters
@@ -61,7 +61,7 @@ _RULES: list[RuleDoc] = [
     # Accessibility rules
     # ------------------------------------------------------------------
     RuleDoc(
-        code="PA001",
+        code="SC001",
         title="cross-package import of an @internal symbol",
         what=(
             "Importing a symbol marked @internal from a package other than the one "
@@ -77,7 +77,7 @@ _RULES: list[RuleDoc] = [
 from alpha.core import _helper   # @internal in alpha — violation
 
 # alpha/core.py
-from pyaccess import internal
+from scopify import internal
 
 @internal
 def _helper(): ...
@@ -85,7 +85,7 @@ def _helper(): ...
         example_good="""\
 # Option 1 — use a @public API surface instead:
 # alpha/core.py
-from pyaccess import public
+from scopify import public
 
 @public
 def helper(): ...
@@ -94,13 +94,13 @@ def helper(): ...
 from alpha.core import helper   # OK
 
 # Option 2 — suppress a single import with inline comment:
-from alpha.core import _helper  # pyaccess: ignore[PA001]
+from alpha.core import _helper  # scopify: ignore[SC001]
 """,
-        escape="# pyaccess: ignore[PA001]  (trailing comment on the import line)",
+        escape="# scopify: ignore[SC001]  (trailing comment on the import line)",
         severity="error",
     ),
     RuleDoc(
-        code="PA002",
+        code="SC002",
         title="cross-module import of a @private symbol",
         what=(
             "Importing a symbol marked @private from any module other than its "
@@ -117,26 +117,26 @@ from alpha.core import _helper  # pyaccess: ignore[PA001]
 from alpha.core import _impl   # @private in alpha.core — violation
 
 # alpha/core.py
-from pyaccess import private
+from scopify import private
 
 @private
 def _impl(): ...
 """,
         example_good="""\
 # Promote to @internal if the sibling legitimately needs it:
-from pyaccess import internal
+from scopify import internal
 
 @internal
 def _impl(): ...
 
 # Or suppress:
-from alpha.core import _impl  # pyaccess: ignore[PA002]
+from alpha.core import _impl  # scopify: ignore[SC002]
 """,
-        escape="# pyaccess: ignore[PA002]  (trailing comment on the import line)",
+        escape="# scopify: ignore[SC002]  (trailing comment on the import line)",
         severity="error",
     ),
     RuleDoc(
-        code="PA003",
+        code="SC003",
         title="visibility annotation conflicts with naming convention",
         what=(
             "An explicit @public/@internal decorator disagrees with the leading-underscore "
@@ -152,7 +152,7 @@ from alpha.core import _impl  # pyaccess: ignore[PA002]
             "  warning @internal on a non-underscore name (style nudge only)"
         ),
         example_bad="""\
-from pyaccess import public, internal
+from scopify import public, internal
 
 @public          # ERROR: name says hidden, decorator says public
 def _my_func(): ...
@@ -170,53 +170,53 @@ def _my_helper(): ... # underscore matches internal
 
 # Or suppress:
 @public
-def _my_func(): ...   # pyaccess: ignore[PA003]
+def _my_func(): ...   # scopify: ignore[SC003]
 """,
-        escape="# pyaccess: ignore[PA003]  (trailing comment on the decorator line)",
+        escape="# scopify: ignore[SC003]  (trailing comment on the decorator line)",
         severity="error",  # sub-case for @public/_name; warning for the other sub-case
     ),
     # ------------------------------------------------------------------
     # Dynamic construct rules
     # ------------------------------------------------------------------
     RuleDoc(
-        code="PA010",
+        code="SC010",
         title="dynamic attribute access via getattr/setattr/hasattr/delattr",
         what=(
             "A call to getattr/setattr/hasattr/delattr where the attribute name is not "
-            "a string literal — pyaccess cannot statically resolve which symbol is accessed."
+            "a string literal — scopify cannot statically resolve which symbol is accessed."
         ),
         why=(
             "Non-literal attribute names defeat all static visibility analysis. "
-            "PyAccess cannot know at analysis time which @internal or @private symbol "
+            "Scopify cannot know at analysis time which @internal or @private symbol "
             "the runtime will access, so the access escapes enforcement entirely."
         ),
         example_bad="""\
 attr = "helper"
-value = getattr(obj, attr)   # PA010: name is not a literal
+value = getattr(obj, attr)   # SC010: name is not a literal
 """,
         example_good="""\
 # Use a literal name:
 value = getattr(obj, "helper")   # OK — literal, resolvable
 
 # Or suppress if the dynamic access is intentional:
-value = getattr(obj, attr)  # pyaccess: allow-dynamic
+value = getattr(obj, attr)  # scopify: allow-dynamic
 
 # Or annotate the function:
-from pyaccess import dynamic
+from scopify import dynamic
 
 @dynamic(reason="plugin dispatch requires runtime attribute lookup")
 def load_plugin(obj, name):
     return getattr(obj, name)
 """,
         escape=(
-            "# pyaccess: allow-dynamic          (inline, single line)\n"
+            "# scopify: allow-dynamic          (inline, single line)\n"
             "  @dynamic(reason='...')           (function/class scope)\n"
-            "  # pyaccess: dynamic-module       (whole file, near top)"
+            "  # scopify: dynamic-module       (whole file, near top)"
         ),
         severity="error",
     ),
     RuleDoc(
-        code="PA011",
+        code="SC011",
         title="use of eval / exec / compile",
         what="A call to eval(), exec(), or compile() with a dynamic string argument.",
         why=(
@@ -225,20 +225,20 @@ def load_plugin(obj, name):
             "enforcement is completely bypassed for the executed code."
         ),
         example_bad="""\
-eval("some_internal_func()")  # PA011
-exec(user_code)               # PA011
+eval("some_internal_func()")  # SC011
+exec(user_code)               # SC011
 """,
         example_good="""\
 # Refactor to avoid dynamic execution, or suppress if unavoidable:
-eval("some_internal_func()")  # pyaccess: allow-dynamic
+eval("some_internal_func()")  # scopify: allow-dynamic
 """,
         escape=(
-            "# pyaccess: allow-dynamic  |  @dynamic(reason='...')  |  # pyaccess: dynamic-module"
+            "# scopify: allow-dynamic  |  @dynamic(reason='...')  |  # scopify: dynamic-module"
         ),
         severity="error",
     ),
     RuleDoc(
-        code="PA012",
+        code="SC012",
         title="dynamic import via importlib or __import__",
         what=(
             "A call to importlib.import_module() or __import__() with a non-literal "
@@ -246,27 +246,27 @@ eval("some_internal_func()")  # pyaccess: allow-dynamic
         ),
         why=(
             "Dynamic imports load modules whose name is unknown at analysis time. "
-            "PyAccess cannot build the import graph for dynamically loaded modules, "
+            "Scopify cannot build the import graph for dynamically loaded modules, "
             "so @internal/@private constraints on their symbols go unenforced."
         ),
         example_bad="""\
 import importlib
-mod = importlib.import_module(plugin_name)  # PA012
+mod = importlib.import_module(plugin_name)  # SC012
 """,
         example_good="""\
 # Use a literal:
 mod = importlib.import_module("mypackage.plugin")  # OK
 
 # Or suppress:
-mod = importlib.import_module(plugin_name)  # pyaccess: allow-dynamic
+mod = importlib.import_module(plugin_name)  # scopify: allow-dynamic
 """,
         escape=(
-            "# pyaccess: allow-dynamic  |  @dynamic(reason='...')  |  # pyaccess: dynamic-module"
+            "# scopify: allow-dynamic  |  @dynamic(reason='...')  |  # scopify: dynamic-module"
         ),
         severity="error",
     ),
     RuleDoc(
-        code="PA013",
+        code="SC013",
         title="module-level __getattr__ or __getattribute__",
         what=(
             "A module defines __getattr__ or __getattribute__ at module scope, enabling "
@@ -279,7 +279,7 @@ mod = importlib.import_module(plugin_name)  # pyaccess: allow-dynamic
         ),
         example_bad="""\
 # mypackage/mod.py
-def __getattr__(name):           # PA013
+def __getattr__(name):           # SC013
     return _registry[name]
 """,
         example_good="""\
@@ -290,16 +290,16 @@ def get(name: str):              # explicit, analysable
     return _registry[name]
 
 # Or suppress if the lazy-loading pattern is intentional:
-def __getattr__(name):  # pyaccess: allow-dynamic
+def __getattr__(name):  # scopify: allow-dynamic
     return _registry[name]
 """,
         escape=(
-            "# pyaccess: allow-dynamic  |  @dynamic(reason='...')  |  # pyaccess: dynamic-module"
+            "# scopify: allow-dynamic  |  @dynamic(reason='...')  |  # scopify: dynamic-module"
         ),
         severity="error",
     ),
     RuleDoc(
-        code="PA014",
+        code="SC014",
         title="explicit custom metaclass",
         what="A class declares an explicit metaclass= argument (other than type).",
         why=(
@@ -311,23 +311,23 @@ def __getattr__(name):  # pyaccess: allow-dynamic
 class MyMeta(type):
     def __new__(mcs, name, bases, ns): ...
 
-class MyClass(metaclass=MyMeta):  # PA014
+class MyClass(metaclass=MyMeta):  # SC014
     pass
 """,
         example_good="""\
 # Prefer __init_subclass__, __class_getitem__, or descriptors for most needs.
 
 # Or suppress if the metaclass is unavoidable (e.g. ABCMeta):
-class MyABC(metaclass=ABCMeta):  # pyaccess: allow-dynamic
+class MyABC(metaclass=ABCMeta):  # scopify: allow-dynamic
     pass
 """,
         escape=(
-            "# pyaccess: allow-dynamic  |  @dynamic(reason='...')  |  # pyaccess: dynamic-module"
+            "# scopify: allow-dynamic  |  @dynamic(reason='...')  |  # scopify: dynamic-module"
         ),
         severity="error",
     ),
     RuleDoc(
-        code="PA015",
+        code="SC015",
         title="direct __dict__ mutation",
         what=(
             "A call that mutates an object's __dict__ directly "
@@ -339,8 +339,8 @@ class MyABC(metaclass=ABCMeta):  # pyaccess: allow-dynamic
             "@private ones, without any visibility check."
         ),
         example_bad="""\
-obj.__dict__["_secret"] = value   # PA015
-obj.__dict__.update(kwargs)       # PA015
+obj.__dict__["_secret"] = value   # SC015
+obj.__dict__.update(kwargs)       # SC015
 """,
         example_good="""\
 # Use normal assignment; if the attribute is dynamic use setattr with a literal:
@@ -348,15 +348,15 @@ obj._secret = value               # analysable
 setattr(obj, "_secret", value)    # OK — literal name
 
 # Or suppress:
-obj.__dict__["_secret"] = value   # pyaccess: allow-dynamic
+obj.__dict__["_secret"] = value   # scopify: allow-dynamic
 """,
         escape=(
-            "# pyaccess: allow-dynamic  |  @dynamic(reason='...')  |  # pyaccess: dynamic-module"
+            "# scopify: allow-dynamic  |  @dynamic(reason='...')  |  # scopify: dynamic-module"
         ),
         severity="error",
     ),
     RuleDoc(
-        code="PA016",
+        code="SC016",
         title="frame introspection",
         what=(
             "A call to inspect.currentframe(), inspect.stack(), inspect.trace(), or "
@@ -370,22 +370,22 @@ obj.__dict__["_secret"] = value   # pyaccess: allow-dynamic
         ),
         example_bad="""\
 import inspect
-frame = inspect.currentframe()   # PA016
+frame = inspect.currentframe()   # SC016
 caller_locals = frame.f_locals
 """,
         example_good="""\
 # Pass needed values explicitly instead of reading the caller's frame.
 
 # Or suppress:
-frame = inspect.currentframe()  # pyaccess: allow-dynamic
+frame = inspect.currentframe()  # scopify: allow-dynamic
 """,
         escape=(
-            "# pyaccess: allow-dynamic  |  @dynamic(reason='...')  |  # pyaccess: dynamic-module"
+            "# scopify: allow-dynamic  |  @dynamic(reason='...')  |  # scopify: dynamic-module"
         ),
         severity="error",
     ),
     RuleDoc(
-        code="PA017",
+        code="SC017",
         title="monkey-patching an attribute of an imported name",
         what=(
             "Assigning to an attribute of a name that was imported from another module "
@@ -400,21 +400,21 @@ frame = inspect.currentframe()  # pyaccess: allow-dynamic
         ),
         example_bad="""\
 import alpha.core
-alpha.core.helper = lambda: None  # PA017 — monkey-patching
+alpha.core.helper = lambda: None  # SC017 — monkey-patching
 """,
         example_good="""\
 # Prefer dependency injection or adapter patterns instead of patching.
 # In tests, use pytest monkeypatch or unittest.mock.patch:
 def test_something(monkeypatch):
-    monkeypatch.setattr(alpha.core, "helper", lambda: None)  # pyaccess: allow-dynamic
+    monkeypatch.setattr(alpha.core, "helper", lambda: None)  # scopify: allow-dynamic
 """,
         escape=(
-            "# pyaccess: allow-dynamic  |  @dynamic(reason='...')  |  # pyaccess: dynamic-module"
+            "# scopify: allow-dynamic  |  @dynamic(reason='...')  |  # scopify: dynamic-module"
         ),
         severity="warning",
     ),
     RuleDoc(
-        code="PA018",
+        code="SC018",
         title="write via globals() / locals() / vars()",
         what=(
             "A call to globals(), locals(), or vars() whose return value is used for a "
@@ -426,18 +426,18 @@ def test_something(monkeypatch):
             "any name, including @private ones."
         ),
         example_bad="""\
-globals()["_secret"] = value      # PA018
-globals().update({"key": val})    # PA018
+globals()["_secret"] = value      # SC018
+globals().update({"key": val})    # SC018
 """,
         example_good="""\
 # Use normal assignment:
 _secret = value                   # analysable
 
 # Or suppress:
-globals()["_secret"] = value      # pyaccess: allow-dynamic
+globals()["_secret"] = value      # scopify: allow-dynamic
 """,
         escape=(
-            "# pyaccess: allow-dynamic  |  @dynamic(reason='...')  |  # pyaccess: dynamic-module"
+            "# scopify: allow-dynamic  |  @dynamic(reason='...')  |  # scopify: dynamic-module"
         ),
         severity="error",
     ),

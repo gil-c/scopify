@@ -1,11 +1,11 @@
 """Direct unit tests for rules/access.py and rules/private.py, exercising
 the defensive branches that check_project's normal flow can't reach (an
 import whose importer module has no entry in files_by_module)."""
-from pyaccess.imports import ImportRef
-from pyaccess.markers import Visibility
-from pyaccess.rules import access as access_rule
-from pyaccess.rules import private as private_rule
-from pyaccess.symbols import Symbol
+from scopify.imports import ImportRef
+from scopify.markers import Visibility
+from scopify.rules import access as access_rule
+from scopify.rules import private as private_rule
+from scopify.symbols import Symbol
 
 
 def _symbol(name, module, visibility, qualname=None):
