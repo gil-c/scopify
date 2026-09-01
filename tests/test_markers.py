@@ -1,4 +1,6 @@
 """Visibility markers must be runtime identities with no side effects."""
+import pytest
+
 from scopify import Visibility, dynamic, internal, private, public
 from scopify.markers import get_visibility_name
 
@@ -41,3 +43,28 @@ def test_get_visibility_name_recognises_decorators():
     assert get_visibility_name("markers.private") == "private"
     assert get_visibility_name("unrelated") is None
 
+
+
+def test_internal_including_is_an_identity_too():
+    """Widening the scope must not change what the symbol *is*."""
+
+    @internal(including=["http"])
+    def widened():
+        return 42
+
+    @internal(including="*")
+    def everywhere():
+        return 7
+
+    assert widened() == 42
+    assert everywhere() == 7
+
+
+def test_a_misspelled_scope_fails_loudly_at_import_time():
+    """``including`` is the only spelling; anything else is a TypeError.
+
+    Scopify never runs the code it reads, so a typo would otherwise pass
+    unnoticed and silently narrow the symbol. Python catches it instead.
+    """
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+        internal(to=["http"])
