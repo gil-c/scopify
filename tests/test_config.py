@@ -156,3 +156,59 @@ def test_merge_file_visibility_preserved_when_no_cli_override(tmp_path: Path):
     base = load_config(tmp_path)
     merged = merge_cli_overrides(base)
     assert merged.default_visibility is Visibility.INTERNAL
+
+
+def test_a_zone_declares_the_modules_it_owns_and_what_it_hands_out(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        """
+[tool.scopify.zones.http]
+modules = ["scrapy.http", "scrapy.http.*"]
+exposes = ["Request", "Response"]
+
+[tool.scopify.zones.settings]
+modules = ["scrapy.settings.**"]
+""",
+        encoding="utf-8",
+    )
+    config = load_config(tmp_path)
+    assert config.zones["http"].exposes == ("Request", "Response")
+    assert config.zone_of("scrapy.http.request") == "http"
+    assert config.zone_of("scrapy.settings.default.deep") == "settings"
+    assert config.zone_of("scrapy.utils.python") is None
+
+
+def test_the_most_precise_pattern_wins_when_two_zones_overlap(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        """
+[tool.scopify.zones.everything]
+modules = ["app.**"]
+
+[tool.scopify.zones.web]
+modules = ["app.web.**"]
+""",
+        encoding="utf-8",
+    )
+    config = load_config(tmp_path)
+    assert config.zone_of("app.web.views") == "web"
+    assert config.zone_of("app.core.models") == "everything"
+
+
+def test_a_zone_that_claims_no_module_is_refused(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        "[tool.scopify.zones.empty]\nexposes = ['Thing']\n", encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="must list at least one module"):
+        load_config(tmp_path)
+
+
+def test_no_declared_zones_means_no_zones_at_all(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        "[tool.scopify]\nroots = ['app']\n", encoding="utf-8"
+    )
+    config = load_config(tmp_path)
+    assert config.zones == {}
+    assert config.zone_of("app.anything") is None

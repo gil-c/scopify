@@ -58,6 +58,7 @@ except ImportError as exc:  # pragma: no cover
 
 from scopify import __version__
 from scopify import engine as engine_mod
+from scopify import zones as zones_mod
 from scopify.diagnostics import Diagnostic as PADiagnostic
 from scopify.engine import ProjectIndex  # noqa: F401 - re-exported for type hints only
 
@@ -204,8 +205,53 @@ def _visibility_flip_actions(uri: str, d: PADiagnostic, lines: list[str]) -> lis
     ]
 
 
+def _declare_zone_actions(
+    d: PADiagnostic, root: Path | None
+) -> list[lsp.CodeAction]:
+    """SC020-only quick fix, and the only one that edits a *different* file.
+
+    The diagnostic sits on a package's ``__init__.py``; the declaration
+    belongs in ``pyproject.toml``. LSP allows that — a WorkspaceEdit is
+    keyed by URI, not tied to the document the action was requested on —
+    so we append the block at the end of the file rather than rewriting it,
+    which keeps the project's own comments and ordering intact.
+    """
+    if d.code != "SC020" or not d.symbol or root is None:
+        return []
+    pyproject = root / "pyproject.toml"
+    if not pyproject.is_file():
+        return []
+    try:
+        existing = pyproject.read_text(encoding="utf-8")
+        block = zones_mod.zone_block(zones_mod.analyse(root), d.symbol)
+    except (OSError, SyntaxError):  # pragma: no cover - unreadable project
+        return []
+
+    lines = existing.splitlines()
+    at = len(lines)
+    prefix = "" if existing.endswith("\n\n") else "\n"
+    edit = lsp.TextEdit(
+        range=lsp.Range(
+            start=lsp.Position(line=at, character=0),
+            end=lsp.Position(line=at, character=0),
+        ),
+        new_text=prefix + block,
+    )
+    return [
+        lsp.CodeAction(
+            title=f"scopify: declare zone for '{d.symbol}' in pyproject.toml",
+            kind=lsp.CodeActionKind.QuickFix,
+            diagnostics=[_to_lsp_diagnostic(d)],
+            edit=lsp.WorkspaceEdit(changes={pyproject.as_uri(): [edit]}),
+        )
+    ]
+
+
 def code_actions_for_document(
-    uri: str, diagnostics: list[PADiagnostic], source: str
+    uri: str,
+    diagnostics: list[PADiagnostic],
+    source: str,
+    root: Path | None = None,
 ) -> list[lsp.CodeAction]:
     """All quick fixes applicable to ``diagnostics`` reported on ``source``.
 
@@ -219,6 +265,7 @@ def code_actions_for_document(
         if suppress is not None:
             actions.append(suppress)
         actions.extend(_visibility_flip_actions(uri, d, lines))
+        actions.extend(_declare_zone_actions(d, root))
     return actions
 
 
@@ -516,7 +563,7 @@ def create_server(*, watch_rules: bool = True) -> ScopifyLanguageServer:
         diagnostics = engine_mod.check_source(index, file_path=path, source=doc.source)
         lo, hi = params.range.start.line, params.range.end.line
         in_range = [d for d in diagnostics if lo <= max(d.line - 1, 0) <= hi]
-        return code_actions_for_document(uri, in_range, doc.source)
+        return code_actions_for_document(uri, in_range, doc.source, index.root)
 
     return server
 

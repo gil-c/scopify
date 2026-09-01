@@ -530,6 +530,56 @@ globals()["_secret"] = value      # scopify: allow-dynamic
         ),
         severity="error",
     ),
+    RuleDoc(
+        code="SC020",
+        title="package belongs to no declared zone",
+        what=(
+            "A package holds modules that no zone in [tool.scopify.zones] claims. "
+            "Reported once per package, on its __init__.py. Silent unless the "
+            "project declares at least one zone."
+        ),
+        why=(
+            "A zone only means something if every module falls in exactly one. A "
+            "package nobody claimed is outside the architecture: no rule protects "
+            "it, and nothing stops the rest of the project reaching into it. One "
+            "error per package, so adding a folder dirties one line, not the repo."
+        ),
+        example_bad="""\
+# pyproject.toml declares zones, but not this one:
+# scrapy/downloadermiddlewares/__init__.py:1: SC020
+""",
+        example_good="""\
+[tool.scopify.zones.downloadermiddlewares]
+modules = ["scrapy.downloadermiddlewares", "scrapy.downloadermiddlewares.**"]
+exposes = ["RetryMiddleware"]
+""",
+        escape="# scopify: ignore[SC020]  |  run 'scopify zones --init'",
+        severity="error",
+    ),
+    RuleDoc(
+        code="SC021",
+        title="declared zone matches no module",
+        what=(
+            "A zone declared in [tool.scopify.zones] whose 'modules' patterns match "
+            "nothing in the project. Reported on pyproject.toml."
+        ),
+        why=(
+            "A zone that matches nothing enforces nothing, silently. It is almost "
+            "always a package that got renamed or deleted without the declaration "
+            "following, and it leaves a hole nobody notices."
+        ),
+        example_bad="""\
+[tool.scopify.zones.legacy]
+modules = ["app.legacy.**"]   # app/legacy/ no longer exists -> SC021
+""",
+        example_good="""\
+# Delete the zone, or point it at the package that replaced it:
+[tool.scopify.zones.storage]
+modules = ["app.storage.**"]
+""",
+        escape="# scopify: ignore[SC021]",
+        severity="warning",
+    ),
 ]
 
 # Index by code for O(1) lookup.

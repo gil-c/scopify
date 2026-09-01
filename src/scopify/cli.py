@@ -13,6 +13,7 @@ from scopify.diagnostics import Diagnostic
 from scopify.docs import get_rule, list_rules
 from scopify.engine import check_project
 from scopify.zones import analyse as analyse_zones
+from scopify.zones import format_config, format_coupling, zone_block
 from scopify.zones import format_text as format_zones
 from scopify.zones import to_dict as zones_to_dict
 
@@ -108,6 +109,27 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Only report the dependency knots, without listing every layer.",
     )
+    zones.add_argument(
+        "--init",
+        dest="init",
+        action="store_true",
+        help="Print the zone declaration scopify would write for this project.",
+    )
+    zones.add_argument(
+        "--write",
+        action="store_true",
+        help="With --init, append that declaration to pyproject.toml.",
+    )
+    zones.add_argument(
+        "--declare",
+        metavar="PACKAGE",
+        help="Print the zone declaration for one package (the SC020 fix).",
+    )
+    zones.add_argument(
+        "--coupling",
+        action="store_true",
+        help="Show what each zone hands to the rest of the project instead.",
+    )
 
     return parser
 
@@ -198,10 +220,55 @@ def _handle_zones(args: argparse.Namespace) -> int:
     """
     config = merge_cli_overrides(load_config(args.path), roots=args.roots)
     report = analyse_zones(args.path, config=config)
+    if args.declare:
+        if args.declare not in report.zones and not any(
+            zone.startswith(f"{args.declare}.") for zone in report.zones.values()
+        ):
+            print(
+                f"scopify: no module named '{args.declare}' in {args.path}.",
+                file=sys.stderr,
+            )
+            return 1
+        print(zone_block(report, args.declare), end="")
+        return 0
+    if args.init:
+        return _write_zone_config(args, format_config(report))
     if args.format == "json":
         print(json.dumps(zones_to_dict(report), indent=2))
+    elif args.coupling:
+        print(format_coupling(report))
     else:
         print(format_zones(report, show_layers=not args.no_layers))
+    return 0
+
+
+def _write_zone_config(args: argparse.Namespace, block: str) -> int:
+    """Print the declaration, or append it to pyproject.toml with --write.
+
+    Appending, never rewriting: scopify does not own that file, and a
+    project's pyproject.toml usually carries comments and formatting a
+    round-trip through a TOML writer would flatten. If zones are already
+    declared, we refuse rather than guess how to merge them.
+    """
+    if not args.write:
+        print(block, end="")
+        return 0
+
+    pyproject = Path(args.path) / "pyproject.toml"
+    if not pyproject.is_file():
+        print(f"scopify: no pyproject.toml in {args.path}.", file=sys.stderr)
+        return 1
+    existing = pyproject.read_text(encoding="utf-8")
+    if "[tool.scopify.zones." in existing:
+        print(
+            "scopify: zones are already declared in pyproject.toml. "
+            "Remove them first, or merge by hand.",
+            file=sys.stderr,
+        )
+        return 1
+    separator = "" if existing.endswith("\n\n") else "\n"
+    pyproject.write_text(existing + separator + block, encoding="utf-8")
+    print(f"scopify: zone declaration appended to {pyproject}.")
     return 0
 
 

@@ -157,6 +157,63 @@ packages, e.g. to leave `tests/` out; `--format json` for machine output;
 that half the project imports does shift which imports get reported, so
 failing a build on it would blame whoever happened to touch the crossroads.
 
+## What a zone hands out, and declaring it
+
+Knowing where the layers are is half the story. The other half is what each
+zone *exposes* — the symbols other zones import from it. That is the number
+that says whether a zone is an interface or a drawer:
+
+```
+$ scopify zones src/werkzeug --coupling
+scopify: 35 of 38 zone(s) hand out 170 symbol(s) to the rest of the project.
+
+  werkzeug.datastructures  (1 module(s), exposes 25)
+      Headers  used by 8 zone(s)  [werkzeug.datastructures]
+      MultiDict  used by 5 zone(s)  [werkzeug.datastructures]
+      ... and 19 more
+      ! 25 symbols is not an interface, it is a drawer. Split this zone,
+        or accept that the rest of the project depends on all of it.
+```
+
+The surface is read from **static imports only**, so it is a lower bound:
+anything reached dynamically is invisible, and a symbol meant to be shared
+but not used yet does not appear.
+
+### Declaring zones yourself
+
+Zones are guessed by default. Guessing is fine for a report and wrong for a
+rule, so you can write them down. Scopify proposes, you name:
+
+```toml
+[tool.scopify.zones.http]
+modules = ["scrapy.http", "scrapy.http.**"]
+exposes = ["Request", "Response", "FormRequest"]
+```
+
+`modules` are dotted globs — `*` matches one segment, `**` any depth; the
+most precise pattern wins when two zones overlap. The zone name is the table
+key, chosen by a human, because scopify does not get to name your
+architecture.
+
+`scopify zones --init` prints the whole declaration, deduced from the imports
+your project already makes, so pasting it changes nothing on day one.
+`--write` appends it to `pyproject.toml` (appends, never rewrites — your
+comments stay).
+
+### SC020 / SC021 — keeping the declaration honest
+
+Once — and **only** once — `[tool.scopify.zones]` exists, two rules wake up:
+
+- **SC020**: a package no declared zone claims, reported once on its
+  `__init__.py`. Adding a folder dirties one line, the folder you added,
+  never the project. The fix is `scopify zones --declare <package>`, which
+  prints the block to paste; in an editor the quick fix writes it into
+  `pyproject.toml` for you.
+- **SC021**: a declared zone whose patterns match nothing — usually a rename
+  nobody propagated. Reported on `pyproject.toml`.
+
+Declare nothing and both stay silent: existing projects see no change.
+
 ## Suppressing a single line
 
 Any diagnostic (SC001/SC002, SC004/SC005, SC01x, SC003…) can be silenced

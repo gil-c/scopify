@@ -23,7 +23,7 @@ def test_all_rules_present():
 
 
 def test_all_rules_count():
-    assert len(ALL_RULES) == 14
+    assert len(ALL_RULES) == 16
 
 
 def test_get_rule_returns_correct_doc():
@@ -109,7 +109,7 @@ def test_explain_all_lists_all_codes(capsys):
 def test_explain_all_shows_rule_count(capsys):
     main(["explain"])
     out = capsys.readouterr().out
-    assert "14 rules" in out
+    assert "16 rules" in out
 
 
 def test_explain_unknown_code_exits_2(capsys):

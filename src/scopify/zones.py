@@ -137,6 +137,25 @@ class Knot:
     _zone_of: dict[str, str] = field(default_factory=dict, repr=False)
 
 
+@dataclass(frozen=True)
+class Export:
+    """A symbol one zone defines and another zone imports.
+
+    This is the surface a zone would have to publish for the rest of the
+    project to keep working — the equivalent of a C# project's ``public``,
+    read off what the code actually does rather than declared upfront.
+    """
+
+    symbol: str
+    module: str                      # where it is defined
+    zone: str                        # the zone that owns it
+    consumers: tuple[str, ...] = ()  # the other zones importing it
+
+    @property
+    def reach(self) -> int:
+        return len(self.consumers)
+
+
 @dataclass
 class ZoneReport:
     root: Path
@@ -144,6 +163,17 @@ class ZoneReport:
     levels: dict[str, int] = field(default_factory=dict)     # zone -> layer
     knots: list[Knot] = field(default_factory=list)
     registries: dict[str, str] = field(default_factory=dict)  # plugin -> registry
+    exports: list[Export] = field(default_factory=list)
+
+    def exports_by_zone(self) -> dict[str, list[Export]]:
+        """The exposed surface of each zone, widest reach first."""
+        out: dict[str, list[Export]] = defaultdict(list)
+        for export in self.exports:
+            out[export.zone].append(export)
+        return {
+            zone: sorted(found, key=lambda e: (-e.reach, e.symbol))
+            for zone, found in out.items()
+        }
 
     def members(self) -> dict[str, list[str]]:
         out: dict[str, list[str]] = defaultdict(list)
@@ -578,6 +608,53 @@ def find_knots(edges: list[Edge], zones: dict[str, str]) -> list[Knot]:
     return sorted(knots, key=lambda k: (-len(k.edges), k.zones))
 
 
+def exported_surface(
+    index: ProjectIndex, modules: set[str], zones: dict[str, str]
+) -> list[Export]:
+    """The symbols each zone hands to another zone.
+
+    Read off the imports, so it is a *lower bound*: anything reached
+    dynamically is invisible here, and a symbol meant to be shared but not
+    yet used by anyone does not show up.
+
+    Unlike the dependency graph, this counts every import — including the
+    ones under ``if TYPE_CHECKING:`` and inside functions. Those do not
+    create a load-time cycle, but they are still uses, and a zone that
+    stopped exposing them would break its consumers.
+    """
+    consumers: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for module in sorted(modules):
+        source = index.sources_by_module.get(module)
+        file = index.files_by_module.get(module)
+        if source is None or file is None:
+            continue
+        for ref in collect_imports(
+            source, module, is_package=file.name == "__init__.py"
+        ):
+            name = ref.imported_name
+            if name in (None, "*") or ref.from_module not in modules:
+                continue
+            if ref.from_module == module:
+                continue
+            home, user = zones.get(ref.from_module), zones.get(module)
+            if home is None or user is None or home == user:
+                continue
+            consumers[(ref.from_module, name)].add(user)
+
+    return sorted(
+        (
+            Export(
+                symbol=symbol,
+                module=owner,
+                zone=zones[owner],
+                consumers=tuple(sorted(found)),
+            )
+            for (owner, symbol), found in consumers.items()
+        ),
+        key=lambda e: (e.zone, -e.reach, e.symbol),
+    )
+
+
 def analyse(root: Path, config: ScopifyConfig | None = None) -> ZoneReport:
     root = Path(root).resolve()
     if config is None:
@@ -601,6 +678,7 @@ def analyse(root: Path, config: ScopifyConfig | None = None) -> ZoneReport:
         registries={
             edge.target: edge.source for edge in edges if edge.nature == REGISTRY
         },
+        exports=exported_surface(index, modules, zones),
     )
 
 
@@ -614,6 +692,154 @@ def _relative(path: Path, root: Path) -> str:
         return str(path.relative_to(root))
     except ValueError:
         return str(path)
+
+
+#: A zone handing out more than this many symbols is not a zone any more.
+#: Measured on the corpus: the median zone exposes 2, and every project has
+#: at most one or two outliers well past this line (``scrapy.utils`` at 119).
+#: It is a reading aid, never a threshold anything fails on.
+WIDE_SURFACE = 20
+
+
+def format_coupling(report: ZoneReport) -> str:
+    """What each zone hands to the rest of the project.
+
+    This is the modularity read: a zone with a small, stable surface is a
+    zone; one handing out a hundred names is a drawer everything reaches
+    into, and no dependency rule will fix that.
+    """
+    lines: list[str] = []
+    by_zone = report.exports_by_zone()
+    members = report.members()
+    silent = [zone for zone in members if zone not in by_zone]
+
+    total = len(report.exports)
+    lines.append(
+        f"scopify: {len(by_zone)} of {len(members)} zone(s) hand out "
+        f"{total} symbol(s) to the rest of the project."
+    )
+    lines.append("")
+    for zone, exports in sorted(by_zone.items(), key=lambda kv: -len(kv[1])):
+        widest = exports[0]
+        lines.append(
+            f"  {zone}  ({len(members[zone])} module(s), "
+            f"exposes {len(exports)})"
+        )
+        for export in exports[:6]:
+            lines.append(
+                f"      {export.symbol}  used by {export.reach} zone(s)"
+                f"  [{export.module}]"
+            )
+        if len(exports) > 6:
+            lines.append(f"      ... and {len(exports) - 6} more")
+        if len(exports) > WIDE_SURFACE:
+            lines.append(
+                f"      ! {len(exports)} symbols is not an interface, it is a "
+                "drawer. Split this zone,"
+            )
+            lines.append(
+                "        or accept that the rest of the project depends on all "
+                "of it."
+            )
+        if widest.reach >= 10:
+            lines.append(
+                f"      ! {widest.symbol} is reached by {widest.reach} zones. "
+                "Either it is a pillar"
+            )
+            lines.append(
+                "        and belongs in the published API, or it is a "
+                "crossroads worth breaking up."
+            )
+
+    if silent:
+        if total:
+            lines.append("")
+        lines.append(
+            f"  {len(silent)} zone(s) hand out nothing: "
+            f"{', '.join(sorted(silent)[:8])}"
+            + (" ..." if len(silent) > 8 else "")
+        )
+        lines.append(
+            "  Either well sealed, or dead code. scopify cannot tell the "
+            "difference."
+        )
+    return "\n".join(lines)
+
+
+def _zone_key(zone: str, taken: set[str]) -> str:
+    """A short, legal TOML key for a zone, unique within the file."""
+    stem = zone.removesuffix(DOOR_SUFFIX).strip()
+    parts = [piece for piece in stem.split(".") if piece]
+    name = "_".join(parts[1:]) if len(parts) > 1 else (parts[0] if parts else "zone")
+    name = "".join(char if char.isalnum() or char == "_" else "_" for char in name)
+    name = name.lstrip("_") or "zone"
+    candidate, suffix = name, 2
+    while candidate in taken:
+        candidate, suffix = f"{name}_{suffix}", suffix + 1
+    taken.add(candidate)
+    return candidate
+
+
+def zone_block(report: ZoneReport, package: str) -> str:
+    """The TOML declaration for one package, ready to paste.
+
+    Used by the SC020 quick fix: the diagnostic sits on a package's
+    ``__init__.py``, the fix belongs in ``pyproject.toml``. ``exposes`` is
+    filled from what the rest of the project already imports, so accepting
+    the fix changes no behaviour — it only writes down what is true today.
+    """
+    by_zone = report.exports_by_zone()
+    owned = [
+        zone
+        for zone in report.members()
+        if zone == package or zone.startswith(f"{package}.")
+    ]
+    symbols = sorted(
+        {export.symbol for zone in owned for export in by_zone.get(zone, [])}
+    )
+    key = _zone_key(package, set())
+    exposes = ", ".join(f'"{name}"' for name in symbols)
+    return (
+        f"[tool.scopify.zones.{key}]\n"
+        f'modules = ["{package}", "{package}.**"]\n'
+        f"exposes = [{exposes}]\n"
+    )
+
+
+def format_config(report: ZoneReport) -> str:
+    """The zone declaration scopify would write for this project.
+
+    Deduced from what the code already does, so pasting it changes nothing
+    on day one. Two limits worth stating out loud, both understatements:
+    the surface is read from *static* imports, so anything reached
+    dynamically is missing, and ``exposes`` reflects use, not intent — a
+    symbol meant to be shared but not used yet will not appear.
+    """
+    by_zone = report.exports_by_zone()
+    members = report.members()
+    lines = [
+        "# Generated by 'scopify zones --init'.",
+        "# Deduced from the imports this project already makes, so it",
+        "# describes today rather than prescribing tomorrow. Rename the",
+        "# zones, merge them, and trim 'exposes' until it reads like an",
+        "# interface you would defend.",
+        "",
+    ]
+    taken: set[str] = set()
+    for zone in sorted(members):
+        modules = members[zone]
+        exports = by_zone.get(zone, [])
+        lines.append(f"[tool.scopify.zones.{_zone_key(zone, taken)}]")
+        patterns = sorted({zone, f"{zone}.**"}) if len(modules) > 1 else list(modules)
+        rendered = ", ".join(f'"{pattern}"' for pattern in patterns)
+        lines.append(f"modules = [{rendered}]")
+        if exports:
+            names = ", ".join(f'"{export.symbol}"' for export in exports)
+            lines.append(f"exposes = [{names}]")
+        else:
+            lines.append("exposes = []")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def format_text(report: ZoneReport, *, show_layers: bool = True) -> str:
@@ -702,6 +928,14 @@ def to_dict(report: ZoneReport) -> dict:
                 "name": zone,
                 "layer": report.levels.get(zone, 0),
                 "modules": modules,
+                "exposes": [
+                    {
+                        "symbol": export.symbol,
+                        "module": export.module,
+                        "consumers": list(export.consumers),
+                    }
+                    for export in report.exports_by_zone().get(zone, [])
+                ],
             }
             for zone, modules in sorted(report.members().items())
         ],

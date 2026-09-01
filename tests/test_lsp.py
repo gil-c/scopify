@@ -316,3 +316,51 @@ def test_code_action_end_to_end_offers_suppress_and_flip(tmp_path: Path):
     assert any(a.title == "scopify: change to @internal" for a in actions)
 
 
+
+
+def test_sc020_quick_fix_writes_into_pyproject_not_the_reported_file(
+    tmp_path: Path,
+) -> None:
+    """The cross-file edit: diagnostic on __init__.py, fix in pyproject.toml."""
+    from scopify.engine import check_project
+    from scopify.lsp import code_actions_for_document
+
+    for name, body in {
+        "app/__init__.py": "",
+        "app/core/__init__.py": "",
+        "app/core/models.py": "class User: pass\n",
+        "app/web/__init__.py": "",
+        "app/web/views.py": "from app.core.models import User\n",
+    }.items():
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[tool.scopify.zones.core]\nmodules = ["app.core", "app.core.**"]\n'
+        '[tool.scopify.zones.root]\nmodules = ["app"]\n',
+        encoding="utf-8",
+    )
+
+    reported = [d for d in check_project(tmp_path) if d.code == "SC020"]
+    assert len(reported) == 1
+    target = reported[0].file
+
+    actions = code_actions_for_document(
+        target.as_uri(), reported, target.read_text(encoding="utf-8"), tmp_path
+    )
+    fixes = [a for a in actions if a.title.startswith("scopify: declare zone")]
+    assert len(fixes) == 1
+
+    changes = fixes[0].edit.changes
+    assert list(changes) == [pyproject.as_uri()]  # not the file it was reported on
+    assert '[tool.scopify.zones.web]' in changes[pyproject.as_uri()][0].new_text
+    assert '"User"' not in changes[pyproject.as_uri()][0].new_text
+
+    # Applying it silences the diagnostic.
+    pyproject.write_text(
+        pyproject.read_text(encoding="utf-8")
+        + changes[pyproject.as_uri()][0].new_text,
+        encoding="utf-8",
+    )
+    assert [d for d in check_project(tmp_path) if d.code == "SC020"] == []
