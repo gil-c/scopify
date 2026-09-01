@@ -151,12 +151,12 @@ def test_internal_records_the_zones_it_is_shared_with():
         "@internal\n"
         "def plain(): ...\n"
         "\n"
-        '@internal(to="http")\n'
+        '@internal(including="http")\n'
         "def one(): ...\n"
         "\n"
-        '@internal(to=["http", "cli"])\n'
+        '@internal(including=["http", "cli"])\n'
         "class Many:\n"
-        '    @internal(to="*")\n'
+        '    @internal(including="*")\n'
         "    def everywhere(self): ...\n"
         "\n"
         'VALUE: Annotated[int, Internal["cli"]] = 1\n'
@@ -171,7 +171,7 @@ def test_internal_records_the_zones_it_is_shared_with():
 
 def test_a_computed_scope_is_ignored_rather_than_guessed():
     """Scopify reads code, it never runs it."""
-    source = "from scopify import internal\n@internal(to=ZONES)\ndef f(): ...\n"
+    source = "from scopify import internal\n@internal(including=ZONES)\ndef f(): ...\n"
     (symbol,) = collect_symbols(source, "m")
     assert symbol.visibility is Visibility.INTERNAL
     assert symbol.shared_with == ()

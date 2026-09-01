@@ -34,7 +34,7 @@ def public(obj: _T) -> _T:
     return obj
 
 
-#: ``to="*"`` — shared with every zone in the project, published to nobody
+#: ``including="*"`` — shared with every zone in the project, published to nobody
 #: outside it. Spelled as a star rather than a keyword so it reads like the
 #: glob it behaves as.
 EVERY_ZONE = "*"
@@ -43,21 +43,21 @@ EVERY_ZONE = "*"
 @overload
 def internal(obj: _T) -> _T: ...
 @overload
-def internal(*, to: str | Sequence[str]) -> Callable[[_T], _T]: ...
+def internal(*, including: str | Sequence[str]) -> Callable[[_T], _T]: ...
 
 
-def internal(obj: _T | None = None, *, to: str | Sequence[str] | None = None):
+def internal(obj: _T | None = None, *, including: str | Sequence[str] | None = None):
     """Mark a symbol as ``internal`` — usable inside its own zone.
 
-    Bare, it stops at the zone that defines it. ``to=`` widens that by
-    naming the zones allowed in, or ``to="*"`` for the whole project:
+    Bare, it stops at the zone that defines it. ``including=`` widens that
+    by naming the zones let in, or ``including="*"`` for the whole project:
 
     - ``@internal`` — my zone
-    - ``@internal(to="scrapy.http")`` — my zone, plus that one
-    - ``@internal(to=["a", "b"])`` — my zone, plus those two
-    - ``@internal(to="*")`` — every zone, still nothing outside the project
+    - ``@internal(including="scrapy.http")`` — my zone, plus that one
+    - ``@internal(including=["a", "b"])`` — my zone, plus those two
+    - ``@internal(including="*")`` — every zone, nothing outside the project
 
-    ``to=`` names *zones*, never modules. A module name would tie the
+    ``including=`` names *zones*, never modules. A module name would tie the
     declaration to a file that may move; a zone is the unit that is meant
     to outlive the layout.
     """
