@@ -48,13 +48,13 @@ _decorator_name = _dotted_name
 
 
 def _scope_from_call(node: ast.expr) -> tuple[str, ...]:
-    """Zones named by ``@internal(to=...)`` or ``Internal[...]``.
+    """Zones named by ``@internal(including=...)`` or ``Internal[...]``.
 
     Only literal strings are read. A computed value would have to be
     executed to be known, and scopify never runs the code it reads.
     """
     if isinstance(node, ast.Call):
-        args = [kw.value for kw in node.keywords if kw.arg == "to"]
+        args = [kw.value for kw in node.keywords if kw.arg == "including"]
     elif isinstance(node, ast.Subscript):
         args = [node.slice]
     else:

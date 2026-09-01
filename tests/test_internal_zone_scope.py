@@ -27,10 +27,10 @@ from scopify import internal
 @internal
 def _only_core(): ...
 
-@internal(to=["http"])
+@internal(including=["http"])
 def _for_http(): ...
 
-@internal(to="*")
+@internal(including="*")
 def _for_all(): ...
 """
 
@@ -128,7 +128,7 @@ def test_internal_to_star_published_in_all_is_still_a_contradiction(tmp_path: Pa
     _write(
         tmp_path,
         "pkg/util.py",
-        'from scopify import internal\n\n@internal(to="*")\ndef shared(): ...\n',
+        'from scopify import internal\n\n@internal(including="*")\ndef shared(): ...\n',
     )
 
     codes = [d.code for d in check_project(tmp_path)]
