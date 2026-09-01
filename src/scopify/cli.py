@@ -47,7 +47,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="append",
         default=None,
         dest="roots",
-        help="Override top-level package roots (e.g. --root src.pkgA). Repeatable.",
+        help="Override the project boundaries for @internal (e.g. --root src.pkgA). Repeatable.",
     )
     check.add_argument(
         "--write-baseline",

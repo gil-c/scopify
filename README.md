@@ -3,9 +3,12 @@
 Strict accessibility linter for Python: enforce `@public` / `@internal` / `@private`
 declarations across a project, the way C#, Java, TypeScript or Rust do natively.
 
-This repository currently hosts a Phase 1 POC that demonstrates the core idea:
+The core idea:
 
-> Detect a cross-package import of a symbol marked `@internal`.
+> Python has one word for "hidden" — the leading underscore — and it never
+> says *hidden from whom*. Scopify adds the missing distinction between what
+> your project uses internally and what your users are allowed to rely on,
+> and enforces it statically.
 
 ## Quickstart
 
@@ -29,22 +32,62 @@ to `.venv-setup.log`.
 
 ## Visibility markers
 
+Three levels, three concentric rings around a symbol:
+
 ```python
 from scopify import public, internal, private
 
 @public
-def api_function(): ...
+def api_function(): ...   # published API — my users may rely on it
 
 @internal
-def helper(): ...     # only callable from within the same package
+def helper(): ...         # anywhere inside my own project, promised to nobody outside
 
 @private
-def _secret(): ...    # only callable from within the same module
+def _secret(): ...        # this module only
 ```
+
+The middle level is the one Python cannot express. The underscore convention
+says *hidden*, but never *hidden from whom* — so project-wide plumbing and
+published API end up looking exactly alike. `@internal` is that missing word.
+
+| Level | Who may use it | Typical example |
+|---|---|---|
+| `@private` | the defining module | a helper used two lines below |
+| `@internal` | the whole project | machinery every module needs, promised to no one |
+| `@public` | consumers of the library | what the README tells people to import |
 
 The decorators are pure runtime identities. All enforcement is static, and
 covers both `from X import Y` and later usage (`import pkg.mod` + qualified
 access, `Class.member`/`instance.member`).
+
+## The published API is read from your code
+
+Scopify does not need you to annotate anything to tell an API surface from
+project plumbing. A package already states its public surface in its
+`__init__.py`, in one of the two universal conventions:
+
+```python
+# Either the explicit list...
+__all__ = ["Client", "Response"]
+
+# ...or the PEP 484 redundant alias, which type checkers already honour:
+from .app import Flask as Flask
+```
+
+Scopify reads that declaration as a **door**: what goes through it is
+`@public`, what does not is at most `@internal`. Two rules follow, and both
+work on a codebase that has never seen a Scopify decorator:
+
+* **SC004** — someone reached *past* the door, importing plumbing the package
+  never promised. On `httpx` this immediately finds its own test suite doing
+  `from httpx._urlparse import urlparse`.
+* **SC005** — the door contradicts itself: it publishes a name that resolves
+  to nothing (a latent `from pkg import *` crash), or a name declared
+  `@internal` at its definition site.
+
+A package that declares no door makes no promise, so nothing is enforced
+against it.
 
 ## Configuration
 
@@ -52,16 +95,18 @@ access, `Class.member`/`instance.member`).
 
 ```toml
 default_visibility = "public"        # or "internal" for strict-by-default
-roots = ["src.pkgA", "src.pkgB"]      # explicit top-level package boundaries
+roots = ["src.pkgA", "src.pkgB"]      # explicit project boundaries for @internal
 disabled_rules = ["SC010"]            # rule codes to skip
 ```
 
-`roots` fixes ambiguous layouts (e.g. `src/`) where the first dotted
-segment alone can't tell packages apart — see `modules.top_level_package`.
+`roots` declares where one project ends and the next begins — the boundary
+`@internal` is scoped to. It fixes ambiguous layouts (e.g. `src/`) and
+monorepos shipping several distributions, where the first dotted segment
+alone can't tell them apart — see `modules.top_level_package`.
 
 ## Suppressing a single line
 
-Any diagnostic (cross-package SC001/SC002, PA01x, SC003…) can be silenced
+Any diagnostic (SC001/SC002, SC004/SC005, SC01x, SC003…) can be silenced
 inline, without touching `disabled_rules`:
 
 ```python

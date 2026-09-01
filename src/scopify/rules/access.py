@@ -1,8 +1,10 @@
-"""SC001 — cross-package import of a symbol marked ``@internal``.
+"""SC001 — cross-project import of a symbol marked ``@internal``.
 
-This is the foundational rule of Scopify. It walks every import site in the
-project and reports those that resolve to an ``@internal`` symbol defined in
-a *different* top-level package.
+This is the foundational rule of Scopify. ``@internal`` means "usable
+anywhere inside my own project, promised to nobody outside", so this rule
+walks every import site and reports those resolving to an ``@internal``
+symbol that belongs to a *different* project (see
+``scopify.modules.top_level_package`` for how that boundary is determined).
 """
 from __future__ import annotations
 
@@ -37,7 +39,7 @@ def check(
         if symbol is None or symbol.visibility is not Visibility.INTERNAL:
             continue
         if top_level_package(imp.importer, roots) == top_level_package(symbol.module, roots):
-            continue  # same top-level package — allowed
+            continue  # same project — that is exactly what @internal allows
         file = files_by_module.get(imp.importer)
         if file is None:
             continue
@@ -47,7 +49,7 @@ def check(
                 message=(
                     f"'{imp.imported_name}' is marked @internal in "
                     f"'{imp.from_module}' and cannot be imported from "
-                    f"package '{top_level_package(imp.importer, roots)}'."
+                    f"project '{top_level_package(imp.importer, roots)}'."
                 ),
                 file=file,
                 line=imp.lineno,

@@ -1,5 +1,16 @@
 """Visibility markers and the ``@dynamic`` escape hatch.
 
+Three levels, three concentric rings around a symbol:
+
+* ``@private``  — this module only.
+* ``@internal`` — anywhere inside my own project, promised to nobody outside.
+* ``@public``   — part of the published API: my users may rely on it.
+
+The middle level is the one Python cannot express. The underscore convention
+says "hidden" but never "hidden from whom", so project-wide plumbing and
+published API end up looking alike. ``@internal`` is that missing word, and
+the published API is read from the package's door (see ``scopify.exports``).
+
 These decorators are pure identities at runtime — they do not wrap, do not
 add attributes, do not modify behaviour. All enforcement is static.
 """
@@ -19,17 +30,17 @@ class Visibility(str, Enum):
 
 
 def public(obj: _T) -> _T:
-    """Mark a symbol as ``public`` (visible from anywhere)."""
+    """Mark a symbol as ``public`` — part of the API published to consumers."""
     return obj
 
 
 def internal(obj: _T) -> _T:
-    """Mark a symbol as ``internal`` (visible inside its top-level package)."""
+    """Mark a symbol as ``internal`` — usable anywhere inside its own project."""
     return obj
 
 
 def private(obj: _T) -> _T:
-    """Mark a symbol as ``private`` (visible inside its defining module)."""
+    """Mark a symbol as ``private`` — usable inside its defining module only."""
     return obj
 
 

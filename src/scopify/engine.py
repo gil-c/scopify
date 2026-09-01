@@ -16,11 +16,13 @@ from pathlib import Path
 from scopify.config import ScopifyConfig, load_config
 from scopify.diagnostics import Diagnostic
 from scopify.discovery import discover_python_files
+from scopify.exports import collect_doors
 from scopify.imports import ImportRef, collect_imports
 from scopify.markers import Visibility
 from scopify.modules import module_name_for
 from scopify.reexports import compute_reexports
 from scopify.rules import access as access_rule
+from scopify.rules import api as api_rule
 from scopify.rules import dynamic as dynamic_rule
 from scopify.rules import naming as naming_rule
 from scopify.rules import private as private_rule
@@ -38,6 +40,10 @@ class ProjectIndex:
     modules_by_file: dict[Path, str] = field(default_factory=dict)
     symbols_by_module: dict[str, dict[str, Symbol]] = field(default_factory=dict)
     imports_by_module: dict[str, list[ImportRef]] = field(default_factory=dict)
+    # Published API surface per package: module -> names listed in its
+    # ``__init__.py`` ``__all__`` (see scopify.exports). Only packages that
+    # actually declare one appear here.
+    doors: dict[str, frozenset[str]] = field(default_factory=dict)
     # Live source text per module, kept around so inline
     # ``# scopify: ignore`` comments can be resolved against the same
     # content the diagnostics were computed from (see scopify.suppression).
@@ -47,7 +53,7 @@ class ProjectIndex:
     naming_diagnostics_by_module: dict[str, list[Diagnostic]] = field(default_factory=dict)
     # Visibility assumed for undecorated symbols (see scopify.config).
     default_visibility: Visibility = Visibility.PUBLIC
-    # Explicit top-level package boundaries (see scopify.config / modules.top_level_package).
+    # Explicit project boundaries for @internal (see scopify.config / modules).
     roots: tuple[str, ...] = ()
     disabled_rules: frozenset[str] = field(default_factory=frozenset)
     # Per-rule severity overrides from config (rule code → "error"/"warning"/"hint"/"none").
@@ -71,7 +77,7 @@ def _index_symbols(
     nested: dict[str, dict[str, Symbol]] = {}
     for s in symbols:
         if s.visibility is None:
-            s = replace(s, visibility=default_visibility)
+            s = replace(s, visibility=default_visibility, explicit=False)
         if s.kind in ("function", "class", "attribute") and "." not in s.qualname:
             top_level[s.name] = s
         elif "." in s.qualname:
@@ -81,10 +87,10 @@ def _index_symbols(
 
 
 def _parse_file(
-    source: str, module: str, default_visibility: Visibility
+    source: str, module: str, default_visibility: Visibility, *, is_package: bool = False
 ) -> tuple[dict[str, Symbol], dict[str, dict[str, Symbol]], list[ImportRef]]:
     symbols = collect_symbols(source, module=module)
-    imports = collect_imports(source, module=module)
+    imports = collect_imports(source, module=module, is_package=is_package)
     top_level, nested = _index_symbols(symbols, default_visibility)
     return top_level, nested, imports
 
@@ -113,7 +119,9 @@ def build_index(root: Path, config: ScopifyConfig | None = None) -> ProjectIndex
         except (OSError, UnicodeDecodeError):
             continue
         index.sources_by_module[module] = source
-        top_level, nested, imports = _parse_file(source, module, index.default_visibility)
+        top_level, nested, imports = _parse_file(
+            source, module, index.default_visibility, is_package=file.name == "__init__.py"
+        )
         index.symbols_by_module[module] = top_level
         for class_qualname, members in nested.items():
             index.symbols_by_module[f"{module}.{class_qualname}"] = members
@@ -129,6 +137,8 @@ def build_index(root: Path, config: ScopifyConfig | None = None) -> ProjectIndex
         usage_refs = collect_usages(source, module, known_scopes)
         if usage_refs:
             index.imports_by_module[module].extend(usage_refs)
+
+    index.doors = collect_doors(index.sources_by_module, index.files_by_module)
     return index
 
 
@@ -185,10 +195,27 @@ def _run_rules(
     roots: tuple[str, ...] = (),
     disabled_rules: frozenset[str] = frozenset(),
     severity_overrides: dict[str, str] | None = None,
+    doors: Mapping[str, frozenset[str]] | None = None,
+    raw_symbols_by_module: Mapping[str, Mapping[str, Symbol]] | None = None,
+    imports_by_module: Mapping[str, list[ImportRef]] | None = None,
 ) -> list[Diagnostic]:
     diagnostics: list[Diagnostic] = []
     diagnostics.extend(access_rule.check(imports, symbols_by_module, files_by_module, roots))
     diagnostics.extend(private_rule.check(imports, symbols_by_module, files_by_module))
+    if doors:
+        known_modules = set(files_by_module)
+        diagnostics.extend(
+            api_rule.check_reach(imports, doors, files_by_module, known_modules)
+        )
+        diagnostics.extend(
+            api_rule.check_door(
+                doors,
+                raw_symbols_by_module if raw_symbols_by_module is not None else symbols_by_module,
+                imports_by_module or {},
+                files_by_module,
+                known_modules,
+            )
+        )
     for diags in dynamic_diagnostics_by_module.values():
         diagnostics.extend(diags)
     for diags in naming_diagnostics_by_module.values():
@@ -223,6 +250,9 @@ def check_project(root: Path, config: ScopifyConfig | None = None) -> list[Diagn
         index.roots,
         index.disabled_rules,
         index.severity_overrides,
+        index.doors,
+        index.symbols_by_module,
+        index.imports_by_module,
     )
     return filter_suppressed(diagnostics, index.sources_by_module, index.modules_by_file)
 
@@ -258,7 +288,9 @@ def check_source(
     for key in [k for k in index.symbols_by_module if k.startswith(stale_prefix)]:
         del index.symbols_by_module[key]
 
-    top_level, nested, imports = _parse_file(source, module, index.default_visibility)
+    top_level, nested, imports = _parse_file(
+        source, module, index.default_visibility, is_package=file_path.name == "__init__.py"
+    )
     # Update the live index so cross-file checks see the latest version.
     index.symbols_by_module[module] = top_level
     for class_qualname, members in nested.items():
@@ -270,6 +302,16 @@ def check_source(
     known_scopes = set(index.symbols_by_module.keys())
     imports.extend(collect_usages(source, module, known_scopes))
     index.imports_by_module[module] = imports
+
+    # Editing an ``__init__.py`` can add, remove or change a door.
+    if file_path.name == "__init__.py":
+        from scopify.exports import door_of
+
+        exported = door_of(source)
+        if exported is None:
+            index.doors.pop(module, None)
+        else:
+            index.doors[module] = exported
 
     all_imports: list[ImportRef] = []
     for refs in index.imports_by_module.values():
@@ -286,6 +328,9 @@ def check_source(
         index.roots,
         index.disabled_rules,
         index.severity_overrides,
+        index.doors,
+        index.symbols_by_module,
+        index.imports_by_module,
     )
     diagnostics = filter_suppressed(diagnostics, index.sources_by_module, index.modules_by_file)
     return [d for d in diagnostics if d.file == file_path]
