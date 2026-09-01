@@ -12,6 +12,9 @@ from scopify.config import load_config, merge_cli_overrides
 from scopify.diagnostics import Diagnostic
 from scopify.docs import get_rule, list_rules
 from scopify.engine import check_project
+from scopify.zones import analyse as analyse_zones
+from scopify.zones import format_text as format_zones
+from scopify.zones import to_dict as zones_to_dict
 
 _DEFAULT_BASELINE = "scopify-baseline.json"
 
@@ -79,6 +82,31 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="?",
         metavar="CODE",
         help="Rule code to explain (e.g. SC017). Omit to list all rules.",
+    )
+
+    zones = sub.add_parser(
+        "zones",
+        help="Show the layers a project splits into, and the dependency knots.",
+    )
+    zones.add_argument("path", type=Path, help="Project root to analyse.")
+    zones.add_argument(
+        "--format",
+        choices=("text", "json"),
+        default="text",
+        help="Output format (default: text).",
+    )
+    zones.add_argument(
+        "--root",
+        metavar="PKG",
+        action="append",
+        default=None,
+        dest="roots",
+        help="Restrict the analysis to these top-level packages. Repeatable.",
+    )
+    zones.add_argument(
+        "--no-layers",
+        action="store_true",
+        help="Only report the dependency knots, without listing every layer.",
     )
 
     return parser
@@ -154,8 +182,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "explain":
         return _handle_explain(args)
 
+    if args.command == "zones":
+        return _handle_zones(args)
+
     parser.error(f"unknown command: {args.command}")
     return 2
+
+
+def _handle_zones(args: argparse.Namespace) -> int:
+    """``scopify zones`` is a diagnostic, never a gate.
+
+    It always exits 0. Removing a module that half the project imports does
+    shift which imports are reported, so failing a build on that would blame
+    whoever happened to touch the crossroads.
+    """
+    config = merge_cli_overrides(load_config(args.path), roots=args.roots)
+    report = analyse_zones(args.path, config=config)
+    if args.format == "json":
+        print(json.dumps(zones_to_dict(report), indent=2))
+    else:
+        print(format_zones(report, show_layers=not args.no_layers))
+    return 0
 
 
 def _handle_explain(args: argparse.Namespace) -> int:
