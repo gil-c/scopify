@@ -174,3 +174,21 @@ def test_the_json_view_carries_the_zones_and_the_knots(tmp_path: Path) -> None:
     assert {zone["name"] for zone in payload["zones"]} >= {"app.one", "app.two"}
     assert len(payload["knots"]) == 1
     assert payload["knots"][0]["imports"][0]["file"].startswith("app/")
+
+
+def test_a_knot_is_summed_up_by_the_folders_it_spans(tmp_path: Path) -> None:
+    write(
+        tmp_path,
+        {
+            "app/__init__.py": "",
+            "app/http/__init__.py": "",
+            "app/http/one.py": "from app.web.two import B\n",
+            "app/http/three.py": "from app.http.one import A\n",
+            "app/web/__init__.py": "",
+            "app/web/two.py": "from app.http.three import C\n",
+        },
+    )
+    knot = analyse(tmp_path).knots[0]
+    assert len(knot.zones) == 3
+    assert knot.domains == ("app.http", "app.web")
+    assert "across 2: app.http, app.web" in format_text(analyse(tmp_path))

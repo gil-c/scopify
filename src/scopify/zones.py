@@ -53,6 +53,8 @@ KIND_DEFERRED = "import inside a function"
 #: base class back — but there is no other way to write a facade, so it must
 #: not read like the others.
 KIND_DOOR = "package door re-export"
+#: Marks the zone made of a package's own ``__init__.py``.
+DOOR_SUFFIX = " (door)"
 
 
 @dataclass(frozen=True)
@@ -95,6 +97,21 @@ class Knot:
     @property
     def size(self) -> int:
         return len(self.zones)
+
+    @property
+    def domains(self) -> tuple[str, ...]:
+        """The zones rolled up to the folder they live in.
+
+        A knot of twenty-four zones is unreadable, and most of them are
+        siblings: on scrapy it collapses to six folders, which is the
+        sentence a maintainer can act on. On a flat package there is no
+        folder to roll up to, so this returns the zones unchanged.
+        """
+        rolled = set()
+        for zone in self.zones:
+            parts = zone.replace(DOOR_SUFFIX, "").split(".")
+            rolled.add(".".join(parts[:2]) if len(parts) > 1 else parts[0])
+        return tuple(sorted(rolled))
 
     def by_cause(self) -> list[tuple[str, str, tuple[Edge, ...]]]:
         """Group the imports by the pair of zones they connect.
@@ -318,7 +335,7 @@ def zones_by_directory(modules: set[str], prefixes: list[str]) -> dict[str, str]
             continue
         prefix = max(candidates, key=len)
         if module == prefix:
-            zones[module] = f"{prefix} (door)"
+            zones[module] = prefix + DOOR_SUFFIX
             continue
         head = module[len(prefix) + 1:].split(".")[0]
         zones[module] = f"{prefix}.{head}"
@@ -656,10 +673,17 @@ def format_text(report: ZoneReport, *, show_layers: bool = True) -> str:
         )
     for knot in report.knots:
         lines.append("")
-        lines.append(
-            f"  ! {knot.size} zones depend on each other in a circle: "
-            f"{', '.join(knot.zones)}"
-        )
+        domains = knot.domains
+        if len(domains) < knot.size:
+            lines.append(
+                f"  ! {knot.size} zones depend on each other in a circle, "
+                f"across {len(domains)}: {', '.join(domains)}"
+            )
+        else:
+            lines.append(
+                f"  ! {knot.size} zones depend on each other in a circle: "
+                f"{', '.join(knot.zones)}"
+            )
         for source, target, found in knot.by_cause():
             lines.append(f"      {source} -> {target}  ({len(found)} import(s))")
             for edge in found:
