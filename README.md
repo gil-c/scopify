@@ -104,6 +104,59 @@ disabled_rules = ["SC010"]            # rule codes to skip
 monorepos shipping several distributions, where the first dotted segment
 alone can't tell them apart — see `modules.top_level_package`.
 
+## `scopify zones` — where the layers are, and what breaks them
+
+`@internal` only pays off once a codebase is split into parts that each
+declare what they expose. `scopify zones` reads the import graph and shows
+the split your code already has:
+
+```console
+$ scopify zones src/flask
+scopify: 22 zone(s) over 7 layer(s) in 24 module(s).
+
+  layer  6  flask (door)
+  layer  5  flask.app, flask.blueprints
+  layer  4  flask.sansio.app, flask.sansio.blueprints
+  layer  3  flask.__main__, flask.sansio.scaffold, flask.testing
+  layer  2  flask.cli, flask.sessions, flask.templating, flask.wrappers
+  layer  1  flask.ctx, flask.debughelpers, flask.helpers, flask.json, flask.views
+  layer  0  flask.config, flask.globals, flask.signals, flask.typing
+
+  1 dependency knot(s), 4 import(s) to look at.
+
+  ! 10 zones depend on each other in a circle: flask.app, flask.blueprints, ...
+      flask.cli -> flask.app  (2 import(s))
+        flask/cli.py:45   Flask      [import inside a function]
+        flask/cli.py:124  Flask      [import inside a function]
+      flask.debughelpers -> flask.blueprints  (1 import(s))
+        flask/debughelpers.py:8   Blueprint  [runtime coupling]
+```
+
+Imports are grouped by the pair of zones they tie together, because that is
+the unit of work: one cause, one file to move — not twenty red lines. Each
+one is labelled with what it costs you:
+
+- `runtime coupling` — a real dependency at import time.
+- `annotation only` — used in type positions only; moving it under
+  `if TYPE_CHECKING:` removes the edge.
+- `import inside a function` — someone already worked around the cycle by
+  hand. On werkzeug, 8 of the 13 reported imports are of this kind.
+- `package door re-export` — a package importing its own submodules from
+  its `__init__.py`. A facade cannot be written without them, so they are
+  listed last.
+
+Modules named in a declared list (`PLUGINS = ["app.plugin"]`) are treated as
+dependencies *of* the registry, and the plugins importing it back are not
+reported — otherwise every plugin system reads as a cycle.
+
+Options: `--root PKG` (repeatable) narrows the analysis to some top-level
+packages, e.g. to leave `tests/` out; `--format json` for machine output;
+`--no-layers` prints only the knots.
+
+**This is a diagnostic, not a gate. It always exits 0.** Removing a module
+that half the project imports does shift which imports get reported, so
+failing a build on it would blame whoever happened to touch the crossroads.
+
 ## Suppressing a single line
 
 Any diagnostic (SC001/SC002, SC004/SC005, SC01x, SC003…) can be silenced
