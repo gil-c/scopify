@@ -75,8 +75,9 @@ _RULES: list[RuleDoc] = [
             "and it narrows to the zone that defines the symbol, which is where "
             "the rule starts saying something no other linter says: not just "
             "'do not import that direction', but 'that zone does not hand this "
-            "out'. Widening is explicit — @internal(to=[\"other\"]) for a "
-            "neighbour, to=\"*\" for the whole project, or the zone's exposes "
+            "out'. Widening is explicit — @internal(including=[\"other\"]) for a "
+            "neighbour, including=\"*\" for the whole project, or the zone's "
+            "exposes "
             "list for everyone. Each escape is a decision written down instead "
             "of a coupling nobody named."
         ),
@@ -92,10 +93,10 @@ def _helper(): ...
 """,
         example_good="""\
 # Option 1 — widen the symbol to the zones that need it:
-@internal(to=["http"])          # http may use it, nobody else
+@internal(including=["http"])    # http may use it, nobody else
 def _helper(): ...
 
-@internal(to="*")               # the whole project, still not outside
+@internal(including="*")         # the whole project, still not outside
 def _helper(): ...
 
 # Option 2 — let the zone hand it out, without touching the code:

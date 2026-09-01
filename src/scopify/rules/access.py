@@ -10,8 +10,8 @@ and this behaves exactly as it did before zones existed.
 Declare zones and the boundary tightens to the zone that defines the symbol.
 That is a deliberate hardening — it lights up couplings that were always
 there and that nothing was naming. Each one is answerable in one of three
-ways, all cheap: widen the symbol (``@internal(to=["other"])``, or
-``to="*"`` for the whole project), list it in the zone's ``exposes``, or
+ways, all cheap: widen the symbol (``@internal(including=["other"])``, or
+``including="*"`` for the whole project), list it in the zone's ``exposes``, or
 move the code. A zone's ``exposes`` covers the symbols it hands out without
 touching a line of code, which is why ``scopify zones --init`` produces a
 declaration that reports nothing on day one.

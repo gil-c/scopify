@@ -56,7 +56,8 @@ class ZoneSpec:
     any depth. ``exposes`` lists the symbol names the zone hands to the rest
     of the project; anything else it defines is its own business.
 
-    ``shares`` is the written-down form of ``@internal(to=[...])``: it maps a
+    ``shares`` is the written-down form of ``@internal(including=[...])``: it
+    maps a
     symbol name to the zones allowed to use it, without editing the file that
     defines it. Use it when the code is not yours to annotate, or when you
     would rather read the whole coupling map in one place; use the decorator
