@@ -11,7 +11,7 @@ from scopify.docs import ALL_RULES, get_rule, list_rules
 # ---------------------------------------------------------------------------
 
 ALL_CODES = [
-    "SC001", "SC002", "SC003",
+    "SC001", "SC002", "SC003", "SC004", "SC005",
     "SC010", "SC011", "SC012", "SC013", "SC014", "SC015", "SC016", "SC017", "SC018",
 ]
 
@@ -23,7 +23,7 @@ def test_all_rules_present():
 
 
 def test_all_rules_count():
-    assert len(ALL_RULES) == 12
+    assert len(ALL_RULES) == 14
 
 
 def test_get_rule_returns_correct_doc():
@@ -109,7 +109,7 @@ def test_explain_all_lists_all_codes(capsys):
 def test_explain_all_shows_rule_count(capsys):
     main(["explain"])
     out = capsys.readouterr().out
-    assert "12 rules" in out
+    assert "14 rules" in out
 
 
 def test_explain_unknown_code_exits_2(capsys):

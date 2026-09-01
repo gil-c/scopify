@@ -62,15 +62,17 @@ _RULES: list[RuleDoc] = [
     # ------------------------------------------------------------------
     RuleDoc(
         code="SC001",
-        title="cross-package import of an @internal symbol",
+        title="cross-project import of an @internal symbol",
         what=(
-            "Importing a symbol marked @internal from a package other than the one "
-            "that defines it."
+            "Importing a symbol marked @internal from outside the project that "
+            "defines it."
         ),
         why=(
-            "@internal means 'visible only within this package'. Importing it from "
-            "another top-level package bypasses the intended API boundary and creates "
-            "hidden coupling that breaks when the internal is refactored."
+            "@internal means 'usable anywhere inside my own project, promised to "
+            "nobody outside'. It is the level Python cannot express: the underscore "
+            "convention only says 'hidden', never 'hidden from whom'. Importing an "
+            "@internal symbol from another project creates coupling to something "
+            "that carries no compatibility promise and will break on any refactor."
         ),
         example_bad="""\
 # beta/user.py
@@ -107,10 +109,10 @@ from alpha.core import _helper  # scopify: ignore[SC001]
             "defining module."
         ),
         why=(
-            "@private means 'visible only inside this module'. Unlike @internal (which "
-            "is package-scoped), even a sibling module in the same package must not "
-            "import it. Violations expose implementation details that have no stable "
-            "contract."
+            "@private means 'visible only inside this module'. Unlike @internal "
+            "(which spans the whole project), even a sibling module in the same "
+            "package must not import it. Violations expose implementation details "
+            "that have no stable contract."
         ),
         example_bad="""\
 # alpha/utils.py
@@ -174,6 +176,93 @@ def _my_func(): ...   # scopify: ignore[SC003]
 """,
         escape="# scopify: ignore[SC003]  (trailing comment on the decorator line)",
         severity="error",  # sub-case for @public/_name; warning for the other sub-case
+    ),
+    RuleDoc(
+        code="SC004",
+        title="reaching past a package's published API",
+        what=(
+            "Importing, from outside a package, a name that the package does not "
+            "publish in its __init__.py."
+        ),
+        why=(
+            "A package states its public API in its __init__.py, either as "
+            "`__all__ = [...]` or as the PEP 484 redundant alias "
+            "(`from .app import Flask as Flask`). That declaration is the door: "
+            "what goes through it is @public, what does not is at most @internal.\n"
+            "\n"
+            "Reaching around the door binds you to plumbing the authors never "
+            "promised and are free to rename, move or delete in any release. This "
+            "rule needs no annotation at all — it reads the door the project has "
+            "already declared, so it works on any codebase from the first run.\n"
+            "\n"
+            "Silent when a package declares no door: no promise, nothing to enforce."
+        ),
+        example_bad="""\
+# app/main.py
+from lib.core import plumbing   # not published by 'lib' — violation
+
+# lib/__init__.py
+from .core import Client
+__all__ = ["Client"]
+""",
+        example_good="""\
+# Option 1 — go through the door:
+from lib import Client
+
+# Option 2 — publish it, if it really is API:
+# lib/__init__.py
+from .core import Client, plumbing
+__all__ = ["Client", "plumbing"]
+
+# Option 3 — suppress a deliberate reach:
+from lib.core import plumbing  # scopify: ignore[SC004]
+""",
+        escape="# scopify: ignore[SC004]  (trailing comment on the import line)",
+        severity="warning",
+    ),
+    RuleDoc(
+        code="SC005",
+        title="published API that contradicts itself",
+        what=(
+            "A name published by a package's __init__.py that does not resolve, or "
+            "that is declared @internal/@private at its definition site."
+        ),
+        why=(
+            "The door is written by hand and nothing checks it. Two failures follow.\n"
+            "\n"
+            "A published name that resolves to nothing is a latent crash: "
+            "`from pkg import *` raises AttributeError.\n"
+            "\n"
+            "A published name declared @internal is a contradiction between what the "
+            "project promises its users and what the author wrote at the definition "
+            "site. One of the two is wrong, and only the author can say which.\n"
+            "\n"
+            "Only a *written* @internal counts: a visibility inherited from "
+            "`default_visibility` is an assumption, not a statement."
+        ),
+        example_bad="""\
+# lib/__init__.py
+from .core import helper
+__all__ = ["helper", "Ghost"]   # 'Ghost' resolves to nothing — violation
+
+# lib/core.py
+from scopify import internal
+
+@internal                        # published, yet declared internal — violation
+def helper(): ...
+""",
+        example_good="""\
+# Fix the door:
+__all__ = ["helper"]
+
+# ...and settle the intent at the definition site:
+from scopify import public
+
+@public
+def helper(): ...
+""",
+        escape="# scopify: ignore[SC005]  (trailing comment in the __init__.py)",
+        severity="error",
     ),
     # ------------------------------------------------------------------
     # Dynamic construct rules

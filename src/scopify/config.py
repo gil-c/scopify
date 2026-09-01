@@ -9,11 +9,11 @@ setting, per roadmap §4.1:
   (the default) suits gradual adoption on an existing codebase; ``"internal"``
   is the stricter setting recommended once a project wants every public API
   surface to be explicit.
-* ``roots`` — explicit dotted-prefix list of the top-level package
-  boundaries used by SC001. Overrides the default heuristic (first dotted
-  segment of the module name), which collapses when the analysis root isn't
-  the direct parent of the packages (e.g. a ``src/`` layout or a monorepo
-  scanned from its top).
+* ``roots`` — explicit dotted-prefix list of the *project* boundaries used
+  by SC001 to scope ``@internal``. Overrides the default heuristic (first
+  dotted segment of the module name), which collapses when the analysis root
+  isn't the direct parent of the packages (e.g. a ``src/`` layout, or a
+  monorepo shipping several distributions scanned from its top).
 * ``disabled_rules`` — rule codes (e.g. ``"SC010"``) to skip entirely.
 * ``severity`` — per-rule severity overrides. Maps rule codes to one of
   ``"error"`` (default), ``"warning"``, ``"hint"``, or ``"none"`` (silences

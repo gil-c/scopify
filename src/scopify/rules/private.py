@@ -1,8 +1,8 @@
 """SC002 — cross-module import of a symbol marked ``@private``.
 
 A ``@private`` symbol is only visible inside its defining module. Any
-``from other.module import X`` performed from a *different* module — even
-inside the same package — is a violation.
+``from other.module import X`` performed from a *different* module — even a
+sibling in the same package, even inside the same project — is a violation.
 """
 from __future__ import annotations
 

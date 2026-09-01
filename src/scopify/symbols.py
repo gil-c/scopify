@@ -16,6 +16,10 @@ class Symbol:
     visibility: Visibility | None
     lineno: int
     col_offset: int
+    # True when the visibility was written at the definition site, False when
+    # it was filled in from ``default_visibility``. SC005 needs the
+    # distinction: only a *declared* @internal contradicts a published name.
+    explicit: bool = True
 
 
 def _dotted_name(node: ast.expr) -> str:

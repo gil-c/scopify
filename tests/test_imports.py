@@ -83,3 +83,24 @@ def test_col_offset_per_name_in_multi_import():
     assert by_name["api"] == source.index("api")
 
 
+
+
+def test_relative_import_inside_a_package_anchors_on_the_package():
+    """``from .core import x`` in ``lib/__init__.py`` resolves to ``lib.core``."""
+    refs = collect_imports("from .core import helper\n", module="lib", is_package=True)
+    assert [(r.from_module, r.imported_name) for r in refs] == [("lib.core", "helper")]
+
+
+def test_relative_import_inside_a_module_anchors_on_the_parent():
+    refs = collect_imports("from .core import helper\n", module="lib.mod")
+    assert [(r.from_module, r.imported_name) for r in refs] == [("lib.core", "helper")]
+
+
+def test_bare_relative_import_inside_a_package_resolves_to_itself():
+    refs = collect_imports("from . import core\n", module="lib", is_package=True)
+    assert [(r.from_module, r.imported_name) for r in refs] == [("lib", "core")]
+
+
+def test_parent_relative_import_inside_a_subpackage():
+    refs = collect_imports("from ..globals import g\n", module="lib.json", is_package=True)
+    assert [(r.from_module, r.imported_name) for r in refs] == [("lib.globals", "g")]

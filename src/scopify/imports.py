@@ -15,19 +15,27 @@ class ImportRef:
     col_offset: int
 
 
-def _resolve_relative(level: int, base_module: str, target: str | None) -> str | None:
-    """Resolve a `from .X import Y` style import to an absolute module name."""
+def _resolve_relative(
+    level: int, base_module: str, target: str | None, *, is_package: bool = False
+) -> str | None:
+    """Resolve a `from .X import Y` style import to an absolute module name.
+
+    ``is_package`` must be true when ``base_module`` is a package (its source
+    is an ``__init__.py``). Python anchors relative imports on the *containing
+    package*, which for a package's own ``__init__.py`` is the package itself:
+    ``from .core import x`` inside ``lib/__init__.py`` means ``lib.core``,
+    whereas the same line inside ``lib/mod.py`` also means ``lib.core`` only
+    because one segment is dropped for the module itself.
+    """
     if level == 0:
         return target
     parts = base_module.split(".")
-    # `from . import x` inside `pkg.mod` means `pkg`. Each extra dot pops one more.
+    if is_package:
+        # The package is its own anchor, so the first dot consumes nothing.
+        parts = parts + [""]
     if level > len(parts):
         return None
-    base_parts = parts[: len(parts) - level] if len(parts) > level else []
-    # `from .sibling import x` inside `pkg.mod` -> `pkg.sibling`
-    # base_parts should be the parent package, i.e. pop one off for the module itself,
-    # then pop `level - 1` more.
-    base_parts = parts[: max(0, len(parts) - level)]
+    base_parts = parts[: len(parts) - level]
     if target:
         base_parts = base_parts + [target]
     if not base_parts:
@@ -35,7 +43,7 @@ def _resolve_relative(level: int, base_module: str, target: str | None) -> str |
     return ".".join(base_parts)
 
 
-def collect_imports(source: str, module: str) -> list[ImportRef]:
+def collect_imports(source: str, module: str, *, is_package: bool = False) -> list[ImportRef]:
     try:
         tree = ast.parse(source)
     except SyntaxError:
@@ -56,7 +64,9 @@ def collect_imports(source: str, module: str) -> list[ImportRef]:
                     )
                 )
         elif isinstance(node, ast.ImportFrom):
-            resolved = _resolve_relative(node.level or 0, module, node.module)
+            resolved = _resolve_relative(
+                node.level or 0, module, node.module, is_package=is_package
+            )
             if resolved is None:
                 continue
             for alias in node.names:

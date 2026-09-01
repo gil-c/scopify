@@ -45,7 +45,11 @@ def package_of(module: str) -> str:
 
 
 def top_level_package(module: str, roots: Sequence[str] = ()) -> str:
-    """Return the top-level package boundary used to scope ``@internal``.
+    """Return the *project* boundary used to scope ``@internal``.
+
+    ``@internal`` means "anywhere inside my own project", so this boundary is
+    the distributed unit — normally the top-level package. ``roots`` is what
+    a monorepo shipping several distributions uses to keep them apart.
 
     Without ``roots`` this is just the first dotted segment — a heuristic
     that breaks when the analysis root isn't the direct parent of the
