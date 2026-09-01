@@ -16,7 +16,7 @@ add attributes, do not modify behaviour. All enforcement is static.
 """
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from enum import Enum
 from typing import TypeVar, overload
 
@@ -34,9 +34,40 @@ def public(obj: _T) -> _T:
     return obj
 
 
-def internal(obj: _T) -> _T:
-    """Mark a symbol as ``internal`` — usable anywhere inside its own project."""
-    return obj
+#: ``to="*"`` — shared with every zone in the project, published to nobody
+#: outside it. Spelled as a star rather than a keyword so it reads like the
+#: glob it behaves as.
+EVERY_ZONE = "*"
+
+
+@overload
+def internal(obj: _T) -> _T: ...
+@overload
+def internal(*, to: str | Sequence[str]) -> Callable[[_T], _T]: ...
+
+
+def internal(obj: _T | None = None, *, to: str | Sequence[str] | None = None):
+    """Mark a symbol as ``internal`` — usable inside its own zone.
+
+    Bare, it stops at the zone that defines it. ``to=`` widens that by
+    naming the zones allowed in, or ``to="*"`` for the whole project:
+
+    - ``@internal`` — my zone
+    - ``@internal(to="scrapy.http")`` — my zone, plus that one
+    - ``@internal(to=["a", "b"])`` — my zone, plus those two
+    - ``@internal(to="*")`` — every zone, still nothing outside the project
+
+    ``to=`` names *zones*, never modules. A module name would tie the
+    declaration to a file that may move; a zone is the unit that is meant
+    to outlive the layout.
+    """
+    if obj is not None:
+        return obj
+
+    def _decorator(target: _T) -> _T:
+        return target
+
+    return _decorator
 
 
 def private(obj: _T) -> _T:
@@ -75,7 +106,14 @@ class Public:
 
 
 class Internal:
-    """Marker for ``Annotated[T, Internal]`` visibility on module/class attributes."""
+    """Marker for ``Annotated[T, Internal]`` visibility on module/class attributes.
+
+    Subscript it to widen the scope, mirroring the decorator:
+    ``Annotated[T, Internal["scrapy.http"]]`` or ``Annotated[T, Internal["*"]]``.
+    """
+
+    def __class_getitem__(cls, item: object) -> type[Internal]:
+        return cls
 
 
 class Private:

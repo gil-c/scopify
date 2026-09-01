@@ -141,3 +141,37 @@ TOKEN: typing.Annotated[str, scopify.Internal] = ""
     syms = {s.name: s for s in collect_symbols(source, module="pkg.mod")}
     assert syms["TOKEN"].visibility is Visibility.INTERNAL
 
+
+
+def test_internal_records_the_zones_it_is_shared_with():
+    source = (
+        "from scopify import internal, Internal\n"
+        "from typing import Annotated\n"
+        "\n"
+        "@internal\n"
+        "def plain(): ...\n"
+        "\n"
+        '@internal(to="http")\n'
+        "def one(): ...\n"
+        "\n"
+        '@internal(to=["http", "cli"])\n'
+        "class Many:\n"
+        '    @internal(to="*")\n'
+        "    def everywhere(self): ...\n"
+        "\n"
+        'VALUE: Annotated[int, Internal["cli"]] = 1\n'
+    )
+    scopes = {s.qualname: s.shared_with for s in collect_symbols(source, "m")}
+    assert scopes["plain"] == ()
+    assert scopes["one"] == ("http",)
+    assert scopes["Many"] == ("http", "cli")
+    assert scopes["Many.everywhere"] == ("*",)
+    assert scopes["VALUE"] == ("cli",)
+
+
+def test_a_computed_scope_is_ignored_rather_than_guessed():
+    """Scopify reads code, it never runs it."""
+    source = "from scopify import internal\n@internal(to=ZONES)\ndef f(): ...\n"
+    (symbol,) = collect_symbols(source, "m")
+    assert symbol.visibility is Visibility.INTERNAL
+    assert symbol.shared_with == ()

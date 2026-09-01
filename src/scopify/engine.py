@@ -207,7 +207,9 @@ def _run_rules(
     diagnostics: list[Diagnostic] = []
     if config is not None:
         diagnostics.extend(zones_rule.check(config, files_by_module))
-    diagnostics.extend(access_rule.check(imports, symbols_by_module, files_by_module, roots))
+    diagnostics.extend(
+        access_rule.check(imports, symbols_by_module, files_by_module, roots, config)
+    )
     diagnostics.extend(private_rule.check(imports, symbols_by_module, files_by_module))
     if doors:
         known_modules = set(files_by_module)
