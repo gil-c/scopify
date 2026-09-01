@@ -48,12 +48,59 @@ _VALID_SEVERITIES = {"error", "warning", "hint", "none"}
 
 
 @dataclass(frozen=True)
+class ZoneSpec:
+    """A zone as the developer declares it, not as scopify guesses it.
+
+    ``modules`` are dotted patterns, ``*`` matching one segment and ``**``
+    any depth. ``exposes`` lists the symbol names the zone hands to the rest
+    of the project; anything else it defines is its own business.
+
+    The name is the table key, so a human picked it. That is deliberate:
+    scopify proposes a cut, it does not get to name your architecture.
+    """
+
+    name: str
+    modules: tuple[str, ...] = ()
+    exposes: tuple[str, ...] = ()
+
+    def claims(self, module: str) -> bool:
+        return any(_module_matches(module, pattern) for pattern in self.modules)
+
+
+def _module_matches(module: str, pattern: str) -> bool:
+    """Match a dotted module name against a dotted glob."""
+    parts, wanted = module.split("."), pattern.split(".")
+    if wanted and wanted[-1] == "**":
+        head = wanted[:-1]
+        return len(parts) >= len(head) and all(
+            piece in ("*", parts[index]) for index, piece in enumerate(head)
+        )
+    if len(parts) != len(wanted):
+        return False
+    return all(piece in ("*", parts[index]) for index, piece in enumerate(wanted))
+
+
+@dataclass(frozen=True)
 class ScopifyConfig:
     default_visibility: Visibility = _DEFAULT_VISIBILITY
     roots: tuple[str, ...] = ()
     disabled_rules: frozenset[str] = field(default_factory=frozenset)
     # Maps rule codes to severity overrides. "none" silences the rule.
     severity: dict[str, str] = field(default_factory=dict)
+    # Declared zones, by name. Empty means the developer declared none, and
+    # every zone-related rule stays silent.
+    zones: dict[str, ZoneSpec] = field(default_factory=dict)
+
+    def zone_of(self, module: str) -> str | None:
+        """The declared zone owning ``module``, longest pattern winning."""
+        best: tuple[int, str] | None = None
+        for name, spec in self.zones.items():
+            for pattern in spec.modules:
+                if _module_matches(module, pattern):
+                    score = len(pattern.split("."))
+                    if best is None or score > best[0]:
+                        best = (score, name)
+        return None if best is None else best[1]
 
 
 def _parse_default_visibility(raw: object, *, source: Path) -> Visibility:
@@ -98,6 +145,38 @@ def _parse_severity(raw: object, *, source: Path) -> dict[str, str]:
     return result
 
 
+def _parse_zones(raw: object, *, source: Path) -> dict[str, ZoneSpec]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError(
+            f"{source}: 'zones' must be a table of zone names, got {raw!r}."
+        )
+    result: dict[str, ZoneSpec] = {}
+    for name, body in raw.items():
+        if not isinstance(body, dict):
+            raise ValueError(
+                f"{source}: 'zones.{name}' must be a table with 'modules' and "
+                f"'exposes', got {body!r}."
+            )
+        modules = _parse_str_list(
+            body.get("modules"), key=f"zones.{name}.modules", source=source
+        )
+        if not modules:
+            raise ValueError(
+                f"{source}: 'zones.{name}.modules' must list at least one module "
+                "pattern, otherwise the zone claims nothing."
+            )
+        result[name] = ZoneSpec(
+            name=name,
+            modules=modules,
+            exposes=_parse_str_list(
+                body.get("exposes"), key=f"zones.{name}.exposes", source=source
+            ),
+        )
+    return result
+
+
 def _config_from_mapping(data: dict, *, source: Path) -> ScopifyConfig:
     return ScopifyConfig(
         default_visibility=_parse_default_visibility(
@@ -108,6 +187,7 @@ def _config_from_mapping(data: dict, *, source: Path) -> ScopifyConfig:
             _parse_str_list(data.get("disabled_rules"), key="disabled_rules", source=source)
         ),
         severity=_parse_severity(data.get("severity"), source=source),
+        zones=_parse_zones(data.get("zones"), source=source),
     )
 
 

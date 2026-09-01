@@ -26,6 +26,7 @@ from scopify.rules import api as api_rule
 from scopify.rules import dynamic as dynamic_rule
 from scopify.rules import naming as naming_rule
 from scopify.rules import private as private_rule
+from scopify.rules import zones as zones_rule
 from scopify.suppression import filter_suppressed
 from scopify.symbols import Symbol, collect_symbols
 from scopify.usages import collect_usages
@@ -58,6 +59,8 @@ class ProjectIndex:
     disabled_rules: frozenset[str] = field(default_factory=frozenset)
     # Per-rule severity overrides from config (rule code → "error"/"warning"/"hint"/"none").
     severity_overrides: dict[str, str] = field(default_factory=dict)
+    # The config as declared, kept whole so zone rules can read [tool.scopify.zones].
+    config: ScopifyConfig = field(default_factory=ScopifyConfig)
 
 
 def _index_symbols(
@@ -106,6 +109,7 @@ def build_index(root: Path, config: ScopifyConfig | None = None) -> ProjectIndex
         roots=config.roots,
         disabled_rules=config.disabled_rules,
         severity_overrides=config.severity,
+        config=config,
     )
     for file in discover_python_files(root):
         module = module_name_for(file, root)
@@ -198,8 +202,11 @@ def _run_rules(
     doors: Mapping[str, frozenset[str]] | None = None,
     raw_symbols_by_module: Mapping[str, Mapping[str, Symbol]] | None = None,
     imports_by_module: Mapping[str, list[ImportRef]] | None = None,
+    config: ScopifyConfig | None = None,
 ) -> list[Diagnostic]:
     diagnostics: list[Diagnostic] = []
+    if config is not None:
+        diagnostics.extend(zones_rule.check(config, files_by_module))
     diagnostics.extend(access_rule.check(imports, symbols_by_module, files_by_module, roots))
     diagnostics.extend(private_rule.check(imports, symbols_by_module, files_by_module))
     if doors:
@@ -253,6 +260,7 @@ def check_project(root: Path, config: ScopifyConfig | None = None) -> list[Diagn
         index.doors,
         index.symbols_by_module,
         index.imports_by_module,
+        index.config,
     )
     return filter_suppressed(diagnostics, index.sources_by_module, index.modules_by_file)
 

@@ -11,6 +11,7 @@ from scopify.zones import (
     KIND_RUNTIME,
     analyse,
     build_edges,
+    format_coupling,
     format_text,
     project_prefixes,
     to_dict,
@@ -192,3 +193,65 @@ def test_a_knot_is_summed_up_by_the_folders_it_spans(tmp_path: Path) -> None:
     assert len(knot.zones) == 3
     assert knot.domains == ("app.http", "app.web")
     assert "across 2: app.http, app.web" in format_text(analyse(tmp_path))
+
+
+def test_a_zone_exposes_what_other_zones_import_from_it(tmp_path: Path) -> None:
+    write(
+        tmp_path,
+        {
+            "app/__init__.py": "",
+            "app/core/__init__.py": "",
+            "app/core/models.py": "class User: pass\nclass Draft: pass\n",
+            "app/web/__init__.py": "",
+            "app/web/views.py": "from app.core.models import User\n",
+            "app/api/__init__.py": "",
+            "app/api/routes.py": "from app.core.models import User\n",
+        },
+    )
+    surface = analyse(tmp_path).exports_by_zone()["app.core"]
+    assert [e.symbol for e in surface] == ["User"]
+    assert surface[0].module == "app.core.models"
+    assert surface[0].consumers == ("app.api", "app.web")
+    # Draft is never imported elsewhere, so it is not part of the surface.
+
+
+def test_a_symbol_used_only_at_home_is_not_exposed(tmp_path: Path) -> None:
+    write(
+        tmp_path,
+        {
+            "app/__init__.py": "",
+            "app/core/__init__.py": "",
+            "app/core/models.py": "class User: pass\n",
+            "app/core/store.py": "from app.core.models import User\n",
+        },
+    )
+    assert analyse(tmp_path).exports == []
+
+
+def test_coupling_calls_out_a_symbol_the_whole_project_reaches(
+    tmp_path: Path,
+) -> None:
+    files = {
+        "app/__init__.py": "",
+        "app/hub/__init__.py": "",
+        "app/hub/tools.py": "def helper(): pass\n",
+    }
+    for index in range(12):
+        files[f"app/f{index}/__init__.py"] = ""
+        files[f"app/f{index}/use.py"] = "from app.hub.tools import helper\n"
+    write(tmp_path, files)
+    text = format_coupling(analyse(tmp_path))
+    assert "helper  used by 12 zone(s)" in text
+    assert "reached by 12 zones" in text
+
+
+def test_coupling_names_the_zones_that_hand_out_nothing(tmp_path: Path) -> None:
+    write(
+        tmp_path,
+        {
+            "app/__init__.py": "",
+            "app/alone/__init__.py": "",
+            "app/alone/quiet.py": "VALUE = 1\n",
+        },
+    )
+    assert "hand out nothing" in format_coupling(analyse(tmp_path))
