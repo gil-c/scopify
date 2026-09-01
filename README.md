@@ -55,11 +55,11 @@ published API end up looking exactly alike. `@internal` is that missing word.
 |---|---|---|
 | `@private` | the defining module | a helper used two lines below |
 | `@internal` | its zone — the whole project until you declare zones | machinery, promised to no one |
-| `@internal(to=["http"])` | its zone, plus the ones named | a helper two zones share on purpose |
-| `@internal(to="*")` | every zone, still nothing outside | the utility everybody needs |
+| `@internal(including=["http"])` | its zone, plus the ones named | a helper two zones share on purpose |
+| `@internal(including="*")` | every zone, still nothing outside | the utility everybody needs |
 | `@public` | consumers of the library | what the README tells people to import |
 
-The `to=` forms only mean something once zones are declared — see
+The `including=` forms only mean something once zones are declared — see
 [what `@internal` means once you have zones](#what-internal-means-once-you-have-zones).
 
 The decorators are pure runtime identities. All enforcement is static, and
@@ -231,8 +231,8 @@ and that nothing was naming. Answering one is cheap, and there are four ways:
 
 ```python
 @internal                       # my zone only
-@internal(to=["http"])          # my zone, plus 'http'
-@internal(to="*")               # every zone — still nothing outside the project
+@internal(including=["http"])   # my zone, plus 'http'
+@internal(including="*")        # every zone — still nothing outside the project
 ```
 
 ```toml
@@ -244,7 +244,7 @@ shares = { ConfigAttribute = ["sansio_app"] }  # handed to the ones named
 
 `exposes` and `shares` need no change to the code that defines the symbol,
 which matters when the code is vendored, generated, or simply not yours to
-annotate. `@internal(to=...)` puts the restriction next to the definition,
+annotate. `@internal(including=...)` puts the restriction next to the definition,
 where a reader will find it. Both are read the same way.
 
 **Nothing tightens until you declare zones.** A project with no
