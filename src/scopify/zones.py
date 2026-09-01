@@ -608,6 +608,21 @@ def find_knots(edges: list[Edge], zones: dict[str, str]) -> list[Knot]:
     return sorted(knots, key=lambda k: (-len(k.edges), k.zones))
 
 
+def _owning_module(target: str, modules: set[str]) -> str | None:
+    """The real module behind an import target.
+
+    Member access is recorded against ``module.attr`` chains (``codes`` in
+    ``httpx._status_codes``, then ``.get_reason_phrase``), which are not
+    modules. Walk the dots back until something real appears.
+    """
+    candidate = target
+    while candidate:
+        if candidate in modules:
+            return candidate
+        candidate = candidate.rpartition(".")[0]
+    return None
+
+
 def exported_surface(
     index: ProjectIndex, modules: set[str], zones: dict[str, str]
 ) -> list[Export]:
@@ -621,25 +636,28 @@ def exported_surface(
     ones under ``if TYPE_CHECKING:`` and inside functions. Those do not
     create a load-time cycle, but they are still uses, and a zone that
     stopped exposing them would break its consumers.
+
+    It reads the same enriched stream the rules do, so member access counts
+    too: ``codes.get_reason_phrase(...)`` after importing ``codes`` reaches
+    across a zone boundary just as plainly as importing the name would, and
+    a surface that ignored it would be a surface no rule could trust.
     """
     consumers: dict[tuple[str, str], set[str]] = defaultdict(set)
     for module in sorted(modules):
-        source = index.sources_by_module.get(module)
-        file = index.files_by_module.get(module)
-        if source is None or file is None:
+        user = zones.get(module)
+        if user is None:
             continue
-        for ref in collect_imports(
-            source, module, is_package=file.name == "__init__.py"
-        ):
+        for ref in index.imports_by_module.get(module, ()):
             name = ref.imported_name
-            if name in (None, "*") or ref.from_module not in modules:
+            if name in (None, "*"):
                 continue
-            if ref.from_module == module:
+            owner = _owning_module(ref.from_module, modules)
+            if owner is None or owner == module:
                 continue
-            home, user = zones.get(ref.from_module), zones.get(module)
-            if home is None or user is None or home == user:
+            home = zones.get(owner)
+            if home is None or home == user:
                 continue
-            consumers[(ref.from_module, name)].add(user)
+            consumers[(owner, name)].add(user)
 
     return sorted(
         (

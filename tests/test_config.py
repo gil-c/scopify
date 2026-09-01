@@ -212,3 +212,25 @@ def test_no_declared_zones_means_no_zones_at_all(tmp_path: Path) -> None:
     config = load_config(tmp_path)
     assert config.zones == {}
     assert config.zone_of("app.anything") is None
+
+
+def test_shares_reads_both_a_list_and_a_bare_string(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        "[tool.scopify.zones.core]\n"
+        'modules = ["pkg.core.**"]\n'
+        'shares = { many = ["http", "cli"], one = "http" }\n'
+    )
+    core = load_config(tmp_path).zones["core"]
+    assert core.shared_zones("many") == ("http", "cli")
+    assert core.shared_zones("one") == ("http",)
+    assert core.shared_zones("never_mentioned") == ()
+
+
+def test_shares_must_be_a_table(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        "[tool.scopify.zones.core]\n"
+        'modules = ["pkg.core.**"]\n'
+        'shares = ["http"]\n'
+    )
+    with pytest.raises(ValueError, match="shares"):
+        load_config(tmp_path)

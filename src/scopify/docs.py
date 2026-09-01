@@ -62,17 +62,23 @@ _RULES: list[RuleDoc] = [
     # ------------------------------------------------------------------
     RuleDoc(
         code="SC001",
-        title="cross-project import of an @internal symbol",
+        title="use of an @internal symbol from outside the scope it allows",
         what=(
-            "Importing a symbol marked @internal from outside the project that "
-            "defines it."
+            "Importing a symbol marked @internal from outside the scope it is "
+            "restricted to: another project, or — once zones are declared — "
+            "another zone."
         ),
         why=(
-            "@internal means 'usable anywhere inside my own project, promised to "
-            "nobody outside'. It is the level Python cannot express: the underscore "
-            "convention only says 'hidden', never 'hidden from whom'. Importing an "
-            "@internal symbol from another project creates coupling to something "
-            "that carries no compatibility promise and will break on any refactor."
+            "@internal is the level Python cannot express: the underscore "
+            "convention only says 'hidden', never 'hidden from whom'. Without "
+            "[tool.scopify.zones] the scope is the whole project. Declare zones "
+            "and it narrows to the zone that defines the symbol, which is where "
+            "the rule starts saying something no other linter says: not just "
+            "'do not import that direction', but 'that zone does not hand this "
+            "out'. Widening is explicit — @internal(to=[\"other\"]) for a "
+            "neighbour, to=\"*\" for the whole project, or the zone's exposes "
+            "list for everyone. Each escape is a decision written down instead "
+            "of a coupling nobody named."
         ),
         example_bad="""\
 # beta/user.py
@@ -85,17 +91,26 @@ from scopify import internal
 def _helper(): ...
 """,
         example_good="""\
-# Option 1 — use a @public API surface instead:
-# alpha/core.py
+# Option 1 — widen the symbol to the zones that need it:
+@internal(to=["http"])          # http may use it, nobody else
+def _helper(): ...
+
+@internal(to="*")               # the whole project, still not outside
+def _helper(): ...
+
+# Option 2 — let the zone hand it out, without touching the code:
+[tool.scopify.zones.alpha]
+modules = ["alpha", "alpha.**"]
+exposes = ["_helper"]           # to every zone
+shares = { _helper = ["http"] } # to the ones named
+
+# Option 3 — publish a real API instead:
 from scopify import public
 
 @public
 def helper(): ...
 
-# beta/user.py
-from alpha.core import helper   # OK
-
-# Option 2 — suppress a single import with inline comment:
+# Option 4 — suppress a single import with an inline comment:
 from alpha.core import _helper  # scopify: ignore[SC001]
 """,
         escape="# scopify: ignore[SC001]  (trailing comment on the import line)",

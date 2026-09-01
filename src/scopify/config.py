@@ -32,6 +32,7 @@ config.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -55,6 +56,13 @@ class ZoneSpec:
     any depth. ``exposes`` lists the symbol names the zone hands to the rest
     of the project; anything else it defines is its own business.
 
+    ``shares`` is the written-down form of ``@internal(to=[...])``: it maps a
+    symbol name to the zones allowed to use it, without editing the file that
+    defines it. Use it when the code is not yours to annotate, or when you
+    would rather read the whole coupling map in one place; use the decorator
+    when the restriction belongs next to the definition. ``"*"`` means every
+    zone in the project — still not outside it.
+
     The name is the table key, so a human picked it. That is deliberate:
     scopify proposes a cut, it does not get to name your architecture.
     """
@@ -62,9 +70,14 @@ class ZoneSpec:
     name: str
     modules: tuple[str, ...] = ()
     exposes: tuple[str, ...] = ()
+    shares: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
 
     def claims(self, module: str) -> bool:
         return any(_module_matches(module, pattern) for pattern in self.modules)
+
+    def shared_zones(self, symbol: str) -> tuple[str, ...]:
+        """Zones this zone lets use ``symbol``, on top of itself."""
+        return tuple(self.shares.get(symbol, ()))
 
 
 def _module_matches(module: str, pattern: str) -> bool:
@@ -145,6 +158,26 @@ def _parse_severity(raw: object, *, source: Path) -> dict[str, str]:
     return result
 
 
+def _parse_shares(
+    raw: object, *, zone: str, source: Path
+) -> dict[str, tuple[str, ...]]:
+    """Read ``shares = { symbol = ["zone", ...] }``, tolerating a bare string."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError(
+            f"{source}: 'zones.{zone}.shares' must be a table mapping a symbol "
+            f'name to the zones allowed to use it, got {raw!r}.'
+        )
+    result: dict[str, tuple[str, ...]] = {}
+    for symbol, targets in raw.items():
+        values = [targets] if isinstance(targets, str) else targets
+        result[symbol] = _parse_str_list(
+            values, key=f"zones.{zone}.shares.{symbol}", source=source
+        )
+    return result
+
+
 def _parse_zones(raw: object, *, source: Path) -> dict[str, ZoneSpec]:
     if raw is None:
         return {}
@@ -173,6 +206,7 @@ def _parse_zones(raw: object, *, source: Path) -> dict[str, ZoneSpec]:
             exposes=_parse_str_list(
                 body.get("exposes"), key=f"zones.{name}.exposes", source=source
             ),
+            shares=_parse_shares(body.get("shares"), zone=name, source=source),
         )
     return result
 

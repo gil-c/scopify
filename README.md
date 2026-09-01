@@ -54,8 +54,13 @@ published API end up looking exactly alike. `@internal` is that missing word.
 | Level | Who may use it | Typical example |
 |---|---|---|
 | `@private` | the defining module | a helper used two lines below |
-| `@internal` | the whole project | machinery every module needs, promised to no one |
+| `@internal` | its zone — the whole project until you declare zones | machinery, promised to no one |
+| `@internal(to=["http"])` | its zone, plus the ones named | a helper two zones share on purpose |
+| `@internal(to="*")` | every zone, still nothing outside | the utility everybody needs |
 | `@public` | consumers of the library | what the README tells people to import |
+
+The `to=` forms only mean something once zones are declared — see
+[what `@internal` means once you have zones](#what-internal-means-once-you-have-zones).
 
 The decorators are pure runtime identities. All enforcement is static, and
 covers both `from X import Y` and later usage (`import pkg.mod` + qualified
@@ -213,6 +218,62 @@ Once — and **only** once — `[tool.scopify.zones]` exists, two rules wake up:
   nobody propagated. Reported on `pyproject.toml`.
 
 Declare nothing and both stay silent: existing projects see no change.
+
+## What `@internal` means once you have zones
+
+Declaring zones is not just for the report. It changes what `@internal`
+means: the scope narrows from *the project* to *the zone that defines the
+symbol*. This is the point where the two halves of scopify finally meet —
+zones say where the walls are, visibility says what goes through them.
+
+That narrowing is deliberate. It lights up couplings that were always there
+and that nothing was naming. Answering one is cheap, and there are four ways:
+
+```python
+@internal                       # my zone only
+@internal(to=["http"])          # my zone, plus 'http'
+@internal(to="*")               # every zone — still nothing outside the project
+```
+
+```toml
+[tool.scopify.zones.config]
+modules = ["flask.config"]
+exposes = ["Config", "ConfigAttribute"]   # handed to every zone
+shares = { ConfigAttribute = ["sansio_app"] }  # handed to the ones named
+```
+
+`exposes` and `shares` need no change to the code that defines the symbol,
+which matters when the code is vendored, generated, or simply not yours to
+annotate. `@internal(to=...)` puts the restriction next to the definition,
+where a reader will find it. Both are read the same way.
+
+**Nothing tightens until you declare zones.** A project with no
+`[tool.scopify.zones]` behaves exactly as before: one project, one zone.
+
+Because `scopify zones --init` deduces `exposes` from the imports your
+project already makes, adopting it reports nothing on day one — and then
+every alert is one you asked for. On flask, with `default_visibility =
+"internal"` and the generated declaration pasted as-is:
+
+```console
+$ scopify check src
+scopify: no issues found.
+```
+
+Trim a single name out of one zone — decide that `flask.config` should hand
+out `Config` but keep `ConfigAttribute` to itself — and the tool answers with
+the one place that would have to change:
+
+```console
+$ scopify check src
+src/flask/sansio/app.py:22:21: ERROR SC001 'ConfigAttribute' is marked @internal
+  in 'flask.config' and is limited to zone 'config', so zone 'sansio_app'
+  cannot use it.
+```
+
+One line edited, one honest answer: either `sansio_app` really needs it and
+you write `shares = { ConfigAttribute = ["sansio_app"] }`, or it does not and
+you move the code. That is the whole loop.
 
 ## Suppressing a single line
 
